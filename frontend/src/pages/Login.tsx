@@ -130,7 +130,6 @@ export const Login: React.FC = () => {
     }
 
     if (res.role === "admin") {
-      localStorage.setItem("admin_authenticated", "true");
       navigate("/admin");
     } else {
       navigate("/chat");
@@ -155,7 +154,6 @@ export const Login: React.FC = () => {
       return;
     }
 
-    localStorage.setItem("admin_authenticated", "true");
     navigate("/admin");
   };
 

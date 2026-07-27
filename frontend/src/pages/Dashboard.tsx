@@ -19,17 +19,14 @@ import {
   Users,
   ArrowUpRight,
   Shield,
-  Database,
-  RefreshCw,
 } from "lucide-react";
 import { StatCard } from "../components/StatCard";
 import { AnalyticsSummaryPanel } from "../components/AnalyticsSummaryPanel";
 import type { QueryLog } from "../types/query";
 import type { ManagedUser } from "../types/user";
+import { queryLogAuthor } from "../lib/userMapping";
 
 interface DashboardProps {
-  emptySystemState: boolean;
-  handleResetData: () => void;
   dashboardStats: {
     totalQueries: number;
     successfulQueries: number;
@@ -51,8 +48,6 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
-  emptySystemState,
-  handleResetData,
   dashboardStats,
   queryVolumeTrend,
   accuracyHistory,
@@ -65,31 +60,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
   setSelectedLog,
   setActiveKpiModal,
 }) => {
-  if (emptySystemState) {
-    return (
-      <div className="bg-surface border border-border rounded-2xl p-12 text-center shadow-lg animate-fade-in">
-        <div className="w-16 h-16 bg-surface-2 text-text-faint rounded-full flex items-center justify-center mx-auto mb-4 border border-border">
-          <Database className="w-8 h-8" />
-        </div>
-        <h3 className="text-lg font-bold text-text mb-1 font-sans">
-          No System Data Available
-        </h3>
-        <p className="text-text-muted text-sm max-w-sm mx-auto mb-6 font-sans">
-          The analytical log database is currently empty. Run the database seed
-          script or trigger client queries to generate usage metrics.
-        </p>
-        <button
-          type="button"
-          onClick={handleResetData}
-          className="bg-teal hover:bg-teal-strong text-white font-semibold px-5 py-2.5 rounded-full text-xs transition-all shadow-lg shadow-teal/20 flex items-center gap-2 mx-auto cursor-pointer active:scale-95"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Load Default Datasets
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 animate-fade-in">
       {/* STATS CARDS */}
@@ -358,10 +328,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2.5">
-                      <span className="text-xs font-bold text-text font-sans">
-                        {managedUsers.some((u) => u.username === log.user)
-                          ? log.user
-                          : "Deleted User"}
+                      <span
+                        className={`text-xs font-bold font-sans ${
+                          log.userDeleted ? "text-text-faint italic" : "text-text"
+                        }`}
+                      >
+                        {queryLogAuthor(log)}
                       </span>
                       <span className="text-[10px] text-text-faint font-bold font-mono">
                         {new Date(log.timestamp).toLocaleTimeString([], {
@@ -466,8 +438,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
             <div className="divide-y divide-border/40">
               {managedUsers
-                .filter((u) => u.lastActive !== "Never")
-                .sort((a, b) => b.lastActive.localeCompare(a.lastActive))
+                .filter((u) => u.lastActiveAt)
+                // Sort on the raw timestamp - `lastActive` is a localised
+                // string ("7/26/2026, 12:49:00 PM"), so comparing it puts
+                // December before July.
+                .sort(
+                  (a, b) =>
+                    new Date(b.lastActiveAt!).getTime() -
+                    new Date(a.lastActiveAt!).getTime()
+                )
                 .slice(0, 4)
                 .map((user) => (
                   <div

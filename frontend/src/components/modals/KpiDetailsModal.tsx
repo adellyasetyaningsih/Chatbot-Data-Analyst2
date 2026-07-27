@@ -4,6 +4,7 @@ import type { QueryLog } from "../../types/query";
 import type { UserActivity } from "../../types/user";
 import type { BenchmarkQuestion } from "../../types/benchmark";
 import { Modal } from "../Modal";
+import { queryLogAuthor } from "../../lib/userMapping";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -67,8 +68,12 @@ export const KpiDetailsModal: React.FC<KpiDetailsModalProps> = ({
                   <tbody className="divide-y divide-border/40">
                     {queryLogs.map((log) => (
                       <tr key={log.id} className="hover:bg-surface-hover/40">
-                        <td className="py-2 px-4 font-bold text-text">
-                          {log.user}
+                        <td
+                          className={`py-2 px-4 font-bold ${
+                            log.userDeleted ? "text-text-faint italic" : "text-text"
+                          }`}
+                        >
+                          {queryLogAuthor(log)}
                         </td>
                         <td className="py-2 px-4 truncate max-w-xs text-text-muted font-medium">
                           {log.question}
@@ -109,8 +114,12 @@ export const KpiDetailsModal: React.FC<KpiDetailsModalProps> = ({
                       .filter((log) => log.status === "Success")
                       .map((log) => (
                         <tr key={log.id} className="hover:bg-surface-hover/40">
-                          <td className="py-2 px-4 font-bold text-text">
-                            {log.user}
+                          <td
+                            className={`py-2 px-4 font-bold ${
+                              log.userDeleted ? "text-text-faint italic" : "text-text"
+                            }`}
+                          >
+                            {queryLogAuthor(log)}
                           </td>
                           <td className="py-2 px-4 truncate max-w-xs text-text-muted font-medium">
                             {log.question}
@@ -151,8 +160,12 @@ export const KpiDetailsModal: React.FC<KpiDetailsModalProps> = ({
                       .filter((log) => log.status === "Failed")
                       .map((log) => (
                         <tr key={log.id} className="hover:bg-surface-hover/40">
-                          <td className="py-2 px-4 font-bold text-text">
-                            {log.user}
+                          <td
+                            className={`py-2 px-4 font-bold ${
+                              log.userDeleted ? "text-text-faint italic" : "text-text"
+                            }`}
+                          >
+                            {queryLogAuthor(log)}
                           </td>
                           <td className="py-2 px-4 truncate max-w-xs text-text-muted font-medium">
                             {log.question}

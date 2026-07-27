@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useUiStore } from "../store/uiStore";
-import { useProfileStore } from "../store/profileStore";
 import { useAuthStore } from "../store/authStore";
-import { authApi, ApiError, type AccountProfile } from "../lib/apiClient";
+import { authApi, userApi, ApiError, type AccountProfile } from "../lib/apiClient";
+import type { QueryLog } from "../types/query";
 import { UserSidebar } from "../components/Sidebar/UserSidebar";
 import { Button } from "../components/UI/Button";
 import { Input } from "../components/UI/Input";
@@ -11,13 +11,13 @@ import { Sparkles, Save, Calendar, Shield, Activity, User, Key, ShieldAlert } fr
 
 export const Profile: React.FC = () => {
   const { theme, initializeUi } = useUiStore();
-  const { profile, updateDisplayName, initializeProfile, addActivity } = useProfileStore();
   const { user: authUser } = useAuthStore();
 
   const [editName, setEditName] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [account, setAccount] = useState<AccountProfile | null>(null);
   const [profileError, setProfileError] = useState("");
+  const [activity, setActivity] = useState<QueryLog[] | null>(null);
 
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -28,8 +28,20 @@ export const Profile: React.FC = () => {
 
   useEffect(() => {
     initializeUi();
-    initializeProfile();
-  }, [initializeUi, initializeProfile]);
+  }, [initializeUi]);
+
+  // Real activity: the questions this account actually asked, straight from
+  // `query_logs`. Previously this panel rendered a client-side list that was
+  // seeded with invented entries and stamped "Just now".
+  useEffect(() => {
+    if (!authUser?.userId) return;
+    let cancelled = false;
+    userApi
+      .getMyQueryLogs(authUser.userId)
+      .then((res) => { if (!cancelled) setActivity(res.logs); })
+      .catch(() => { if (!cancelled) setActivity([]); });
+    return () => { cancelled = true; };
+  }, [authUser?.userId]);
 
   useEffect(() => {
     if (!authUser?.userId) return;
@@ -41,7 +53,7 @@ export const Profile: React.FC = () => {
       .catch((error) => setProfileError(error instanceof ApiError ? error.message : "Failed to load account profile."));
   }, [authUser?.email, authUser?.userId]);
 
-  const accountEmail = account?.email || authUser?.email || profile.email;
+  const accountEmail = account?.email || authUser?.email || "";
   const displayName = account?.username || authUser?.username || accountEmail.split("@")[0];
   const accountRole = account?.role || authUser?.role || "user";
   const joinedAt = account?.created_at ? new Date(account.created_at).toLocaleDateString() : "-";
@@ -52,9 +64,7 @@ export const Profile: React.FC = () => {
       try {
         const updated = await authApi.updateProfile(authUser.userId, editName.trim());
         setAccount(updated);
-        updateDisplayName(updated.username || editName.trim());
-      addActivity(`Updated display name to '${editName.trim()}'`);
-      setSuccessMsg("Profile updated successfully!");
+        setSuccessMsg("Profile updated successfully!");
       setTimeout(() => setSuccessMsg(""), 3000);
       } catch (error) {
         setProfileError(error instanceof ApiError ? error.message : "Failed to update profile.");
@@ -85,7 +95,6 @@ export const Profile: React.FC = () => {
       await authApi.changePassword(email, currentPassword, newPassword);
       setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
       setResetSuccessMsg("Password changed successfully.");
-      addActivity("Changed account password");
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "Failed to change password.";
       setResetErrorMsg(msg);
@@ -281,11 +290,22 @@ export const Profile: React.FC = () => {
               Recent Activity Logs
             </h3>
             <div className="divide-y divide-slate-100 dark:divide-border/40">
-              {profile.recentActivities.map((act, idx) => (
-                <div key={idx} className="py-3 flex items-center justify-between text-xs text-slate-600 dark:text-text-muted">
-                  <span className="font-semibold">{act}</span>
-                  <span className="text-[8.5px] font-mono text-text-muted dark:text-text-faint">
-                    Just now
+              {activity === null && (
+                <p className="py-3 text-xs text-text-muted font-semibold">Loading activity...</p>
+              )}
+              {activity !== null && activity.length === 0 && (
+                <p className="py-3 text-xs text-text-muted font-semibold">
+                  No activity yet. Questions you ask in chat will show up here.
+                </p>
+              )}
+              {(activity ?? []).slice(0, 10).map((log) => (
+                <div key={log.id} className="py-3 flex items-center justify-between gap-3 text-xs text-slate-600 dark:text-text-muted">
+                  <span className="font-semibold truncate">{log.question}</span>
+                  <span className="text-[8.5px] font-mono text-text-muted dark:text-text-faint flex-shrink-0">
+                    {new Date(log.timestamp).toLocaleString([], {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    })}
                   </span>
                 </div>
               ))}

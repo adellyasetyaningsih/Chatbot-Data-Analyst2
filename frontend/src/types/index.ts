@@ -58,10 +58,3 @@ export interface Note {
   lastModified: number;
 }
 
-export interface UserProfile {
-  email: string;
-  name: string;
-  role: "User";
-  createdAt: string;
-  recentActivities: string[];
-}

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Play, Plus, RefreshCw, X } from "lucide-react";
 import { BenchmarkEvalPanel } from "../components/BenchmarkEvalPanel";
+import { ProviderComparisonPanel } from "../components/ProviderComparisonPanel";
 import { PipelineEvalPanel } from "../components/PipelineEvalPanel";
 import { ApiError, evaluationApi, type BenchmarkQuestionApi } from "../lib/apiClient";
 import { useAuthStore } from "../store/authStore";
@@ -99,6 +100,8 @@ export const Benchmark: React.FC = () => {
       {showForm && <form onSubmit={addQuestion} className="border-t border-border pt-4 grid gap-3"><div className="flex items-center justify-between"><h3 className="text-sm font-bold">Add benchmark case</h3><button type="button" onClick={() => setShowForm(false)}><X className="w-4 h-4" /></button></div><input required value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Question in natural language" className="w-full p-2.5 text-xs bg-surface-hover border border-border rounded-lg" /><textarea required value={goldSql} onChange={(e) => setGoldSql(e.target.value)} placeholder="Expected SQL (SELECT only)" rows={3} className="w-full p-2.5 text-xs font-mono bg-surface-hover border border-border rounded-lg" /><textarea value={goldAnswer} onChange={(e) => setGoldAnswer(e.target.value)} placeholder="Expected answer (optional, stored as reference)" rows={2} className="w-full p-2.5 text-xs bg-surface-hover border border-border rounded-lg" /><div className="flex justify-end"><button disabled={saving} className="px-4 py-2 text-xs font-bold rounded-lg bg-accent text-white disabled:opacity-50">{saving ? "Saving..." : "Save to Database"}</button></div></form>}
     </div>
     <div className="bg-surface border border-border rounded-xl overflow-hidden"><div className="px-5 py-3 border-b border-border text-xs font-bold">Persisted cases ({questions.length})</div><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-surface-2 text-text-muted"><tr><th className="p-3">Question</th><th className="p-3">Expected SQL</th><th className="p-3">Expected Answer</th></tr></thead><tbody className="divide-y divide-border">{questions.map((item) => <tr key={item.id}><td className="p-3">{item.question}</td><td className="p-3 font-mono max-w-80 truncate">{item.gold_sql}</td><td className="p-3 max-w-64 truncate">{item.gold_answer || "—"}</td></tr>)}</tbody></table></div></div>
-    <BenchmarkEvalPanel refreshKey={refreshKey} /><PipelineEvalPanel />
+    <BenchmarkEvalPanel refreshKey={refreshKey} />
+    <ProviderComparisonPanel refreshKey={refreshKey} />
+    <PipelineEvalPanel />
   </div>;
 };

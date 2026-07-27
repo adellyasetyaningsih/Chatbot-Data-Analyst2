@@ -6,7 +6,6 @@ interface HeaderProps {
   activeTab: string;
   theme: "dark" | "light";
   setTheme: (theme: "dark" | "light") => void;
-  apiError: boolean;
   handleLogout: () => void;
 }
 

@@ -86,6 +86,57 @@ def get_recent_messages(
         return []
 
 
+def find_last_select(
+    client: SupabaseClient,
+    session_id: str
+) -> Optional[Dict[str, Any]]:
+    """
+    Find the most recent assistant message in a session whose SQL was a read.
+
+    Used after a confirmed write to re-run the read the admin was last looking
+    at, so the table on screen reflects the change instead of going stale.
+
+    Returns:
+        Optional[Dict]: `{"sql", "question"}` for the latest SELECT/WITH
+            statement and the user question that prompted it, or None when the
+            session has no read to refresh.
+    """
+    rows, _, _ = client.execute_read(
+        """
+        SELECT id, sql_generated, created_at
+        FROM chat_messages
+        WHERE session_id = %s
+          AND role = 'assistant'
+          AND sql_generated IS NOT NULL
+          AND (trim(sql_generated) ILIKE 'SELECT%%' OR trim(sql_generated) ILIKE 'WITH%%')
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        (session_id,)
+    )
+    if not rows:
+        return None
+
+    message = rows[0]
+
+    # The question that produced it is the last user turn before it.
+    asked, _, _ = client.execute_read(
+        """
+        SELECT content
+        FROM chat_messages
+        WHERE session_id = %s AND role = 'user' AND created_at < %s
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        (session_id, message["created_at"])
+    )
+
+    return {
+        "sql": message["sql_generated"],
+        "question": asked[0]["content"] if asked else "Previous Query",
+    }
+
+
 def add_message(
     client: SupabaseClient,
     session_id: str,

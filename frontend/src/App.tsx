@@ -11,9 +11,33 @@ import { RawDataViewer } from "./pages/RawDataViewer";
 import AdminDashboardShell from "./pages/AdminDashboardShell";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 
-// Admin protected route check
+// Admin route guard: requires a stored session whose role is "admin".
+//
+// This is UI gating only, NOT a security boundary - the session is read from
+// localStorage/sessionStorage, so anyone can hand-write one in DevTools and
+// render the admin shell. Real enforcement is server-side: every admin
+// endpoint re-checks the caller's role against the database (`_require_admin`
+// -> `verify_role(..., hard=True)`), so a forged session gets 403s and no data.
 const AdminRoute = ({ children }: { children: React.ReactNode }) => {
-  const isAdmin = localStorage.getItem("admin_authenticated") === "true";
+  const { user, initialize } = useAuthStore();
+
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
+
+  // Read local sessions directly to prevent state sync delays on first load
+  const rawSession = localStorage.getItem("user_session") || sessionStorage.getItem("user_session");
+  let sessionRole: string | undefined;
+  if (rawSession) {
+    try {
+      sessionRole = JSON.parse(rawSession).role;
+    } catch {
+      sessionRole = undefined;
+    }
+  }
+
+  const isAdmin = (user?.isAuthenticated && user.role === "admin") || sessionRole === "admin";
+
   if (!isAdmin) {
     return <Navigate to="/login" replace />;
   }

@@ -1,4 +1,4 @@
-import type { PipelineEvalRun, BenchmarkEvalRun } from "../types/benchmark";
+import type { PipelineEvalRun, BenchmarkEvalRun, ProviderBenchmark } from "../types/benchmark";
 import type { QueryLog } from "../types/query";
 import type { ModelProvider } from "../types";
 
@@ -123,6 +123,8 @@ export interface ManagedUserApiShape {
   role: "user" | "admin";
   status: "active" | "inactive" | "suspended";
   last_login_at: string | null;
+  /** Later of `last_login_at` and the user's most recent query. */
+  last_active_at: string | null;
   created_at: string;
   total_queries: number;
   successful_queries: number;
@@ -294,6 +296,8 @@ export const evaluationApi = {
     requestGet<PipelineEvalRun>("/api/admin/pipeline-eval/latest", { user_id }),
   getLatestBenchmarkEval: (user_id: string) =>
     requestGet<BenchmarkEvalRun>("/api/admin/benchmark-eval/latest", { user_id }),
+  compareBenchmarkProviders: (user_id: string) =>
+    requestGet<{ providers: ProviderBenchmark[] }>("/api/admin/benchmark-eval/compare", { user_id }),
   getBenchmarkEvalHistory: (user_id: string) =>
     requestGet<{ history: any[] }>("/api/admin/benchmark-eval/history", { user_id }),
   getBenchmarkQuestions: (user_id: string) =>

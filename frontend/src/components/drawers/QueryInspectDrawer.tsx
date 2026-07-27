@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { X, AlertCircle, CheckCircle } from "lucide-react";
 import type { QueryLog } from "../../types/query";
 import { adminApi } from "../../lib/apiClient";
+import { queryLogAuthor } from "../../lib/userMapping";
 import { useAuthStore } from "../../store/authStore";
 
 interface QueryInspectDrawerProps {
@@ -99,8 +100,12 @@ export const QueryInspectDrawer: React.FC<QueryInspectDrawerProps> = ({
                 <span className="text-[9px] font-bold text-text-faint uppercase tracking-wide block font-mono">
                   Triggered By
                 </span>
-                <span className="text-sm font-bold text-text block mt-1 font-sans">
-                  {selectedLog.user}
+                <span
+                  className={`text-sm font-bold block mt-1 font-sans ${
+                    selectedLog.userDeleted ? "text-text-faint italic" : "text-text"
+                  }`}
+                >
+                  {queryLogAuthor(selectedLog)}
                 </span>
               </div>
               <div className="text-right">

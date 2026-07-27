@@ -29,7 +29,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       setShowPassword(false);
     };
 
-    const handleTouchStart = (e: React.TouchEvent) => {
+    const handleTouchStart = () => {
       setShowPassword(true);
     };
 

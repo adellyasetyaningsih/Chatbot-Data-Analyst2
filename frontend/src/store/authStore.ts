@@ -115,7 +115,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user: null, pendingOtpUserId: null });
     localStorage.removeItem("user_session");
     sessionStorage.removeItem("user_session");
-    localStorage.removeItem("admin_authenticated");
   },
 
   initialize: () => {

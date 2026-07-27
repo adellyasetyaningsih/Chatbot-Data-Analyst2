@@ -153,20 +153,9 @@ export const useNoteStore = create<NoteState>((set) => ({
       return;
     }
 
+    // No signed-in user yet: show whatever was cached locally, never a
+    // seeded placeholder note the user never wrote.
     const saved = localStorage.getItem(storageKey);
-    if (saved) {
-      set({ notes: JSON.parse(saved) });
-    } else {
-      // Mock initial note
-      const mockNote: Note = {
-        id: "note-init",
-        title: "Welcome Note",
-        content: "Use this panel to save summaries, key observations, or queries you run frequently. You can also link notes directly to active chat sessions.",
-        sessionId: "",
-        lastModified: Date.now()
-      };
-      set({ notes: [mockNote] });
-      localStorage.setItem(storageKey, JSON.stringify([mockNote]));
-    }
+    set({ notes: saved ? JSON.parse(saved) : [], selectedNoteId: null });
   }
 }));

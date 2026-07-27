@@ -16,7 +16,6 @@ interface SidebarProps {
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean) => void;
   theme: "dark" | "light";
-  isTesting: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -24,7 +23,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setActiveTab,
   sidebarCollapsed,
   setSidebarCollapsed,
-  isTesting,
 }) => {
   const [width, setWidth] = React.useState(() => {
     const saved = localStorage.getItem("admin_sidebar_width");
@@ -180,9 +178,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <Award className="w-5 h-5 flex-shrink-0" />
               {!sidebarCollapsed && <span className="font-sans">Benchmark</span>}
-              {isTesting && (
-                <span className="absolute right-2 top-3.5 w-2 h-2 bg-accent rounded-full animate-ping"></span>
-              )}
             </button>
           </div>
 

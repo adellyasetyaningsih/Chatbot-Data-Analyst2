@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { Search, FileSearch, ChevronLeft, ChevronRight } from "lucide-react";
 import type { QueryLog } from "../types/query";
+import { queryLogAuthor } from "../lib/userMapping";
 
 interface QueryLogsProps {
   queryLogs: QueryLog[];
@@ -12,7 +13,7 @@ const logsPerPage = 8;
 const matchesDate = (timestampStr: string, filter: string) => {
   if (filter === "All") return true;
   const date = new Date(timestampStr);
-  const now = new Date("2026-06-26T20:32:16+07:00"); // Fictional current time
+  const now = new Date();
   const diffTime = Math.abs(now.getTime() - date.getTime());
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
@@ -163,8 +164,12 @@ export const QueryLogs: React.FC<QueryLogsProps> = ({
                   onClick={() => setSelectedLog(log)}
                   className="hover:bg-surface-hover/40 cursor-pointer transition-colors group"
                 >
-                  <td className="py-3 px-5 font-bold text-text font-sans">
-                    {log.user}
+                  <td
+                    className={`py-3 px-5 font-bold font-sans ${
+                      log.userDeleted ? "text-text-faint italic" : "text-text"
+                    }`}
+                  >
+                    {queryLogAuthor(log)}
                   </td>
                   <td className="py-3 px-5 max-w-xs truncate text-text-muted font-medium font-sans">
                     {log.question}

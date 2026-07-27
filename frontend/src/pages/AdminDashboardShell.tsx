@@ -79,15 +79,6 @@ export default function App() {
   const [accuracyHistory, setAccuracyHistory] = useState<{ runId: string; accuracy: number; timestamp: string; avgResponseTimeMs: number }[]>([]);
   const [queryVolume, setQueryVolume] = useState<{ date: string; queries: number; successful: number }[]>([]);
 
-  // Retained read-only flags (no simulation toggling - data is always real).
-  const [apiError] = useState(false);
-  const [emptySystemState] = useState(false);
-
-  // Testing simulation progress states
-  const [isTesting] = useState(false);
-  // const [testingProgress, setTestingProgress] = useState(0);
-  // const [testingCurrentIndex, setTestingCurrentIndex] = useState(-1);
-
   // KPI modal trigger state
   const [activeKpiModal, setActiveKpiModal] = useState<
     | "total-queries"
@@ -247,14 +238,6 @@ export default function App() {
   const [userMgmtSortOrder, setUserMgmtSortOrder] = useState<"asc" | "desc">("asc");
   const [userMgmtCurrentPage, setUserMgmtCurrentPage] = useState(1);
 
-  // Refresh all dashboard data from the database.
-  const handleResetData = () => {
-    refetchManagedUsers();
-    loadQueryLogs();
-    loadAnalytics();
-    showToast("🔄 Dashboard refreshed from the database.");
-  };
-
   // Dashboard KPI cards - all from real backend data (analytics summary +
   // benchmark accuracy + managed users).
   const dashboardStats = useMemo(() => {
@@ -273,7 +256,7 @@ export default function App() {
   // Admin Chat Submit Handler - real NL-to-SQL pipeline via /api/admin/ask
   const handleAdminChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput || apiError) return;
+    if (!chatInput) return;
 
     const userId = authUser?.userId;
     const userQuestion = chatInput;
@@ -477,7 +460,6 @@ export default function App() {
         setActiveTab={setActiveTab}
         sidebarCollapsed={sidebarCollapsed}
         setSidebarCollapsed={setSidebarCollapsed}
-        isTesting={isTesting}
       />
 
       {/* MAIN CONTAINER */}
@@ -487,7 +469,6 @@ export default function App() {
           theme={theme}
           setTheme={setTheme}
           activeTab={activeTab}
-          apiError={apiError}
           handleLogout={handleLogout}
         />
 
@@ -495,8 +476,6 @@ export default function App() {
         <section className="flex-1 overflow-y-auto p-6">
           {activeTab === "dashboard" && (
             <Dashboard
-              emptySystemState={emptySystemState}
-              handleResetData={handleResetData}
               dashboardStats={dashboardStats}
               queryVolumeTrend={queryVolume}
               accuracyHistory={accuracyHistory}

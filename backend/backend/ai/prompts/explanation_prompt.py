@@ -11,6 +11,7 @@ from datetime import datetime, date
 from decimal import Decimal
 from enum import Enum
 import json
+import re
 
 
 class ResultType(Enum):
@@ -43,6 +44,61 @@ class QueryResult:
     columns: List[str]
     execution_time: float
     result_type: ResultType = ResultType.TABLE
+
+
+def describe_query_scope(generated_sql: Optional[str], row_count: int) -> str:
+    """
+    Describe, in plain language, what the returned rows represent.
+
+    The explainer only ever saw the rows, never the SQL that produced them, so
+    it had no way to tell "the table holds one category" from "I asked for the
+    single top category". It guessed - and told users things like "we only have
+    data for one category, it's the only category we have data for" for a
+    perfectly ordinary `... ORDER BY count DESC LIMIT 1`.
+
+    These lines are handed to the model so it stops guessing.
+
+    Pure function: no I/O, so the rules can be tested directly.
+
+    Args:
+        generated_sql: The SQL that produced the rows, if known.
+        row_count: How many rows came back.
+
+    Returns:
+        str: Newline-separated notes for the prompt.
+    """
+    notes: List[str] = []
+    sql = " ".join((generated_sql or "").split())
+    upper = sql.upper()
+
+    limit_match = re.search(r"\bLIMIT\s+(\d+)\b", upper)
+    if limit_match:
+        n = limit_match.group(1)
+        notes.append(
+            f"- These are the TOP {n} row(s) only - the query asked for the best {n} "
+            f"by ranking. More rows exist in the database. Never say this is all the "
+            f"data there is, or that only {row_count} of something exists."
+        )
+
+    if "GROUP BY" in upper:
+        notes.append("- Each row is one group (one category, city, tier, method, and so on).")
+    elif row_count == 1 and re.search(r"\b(COUNT|SUM|AVG|MIN|MAX)\s*\(", upper):
+        notes.append("- This is one overall figure calculated across all matching records.")
+
+    where_match = re.search(r"\bWHERE\b(.*?)(?:\bGROUP BY\b|\bORDER BY\b|\bLIMIT\b|$)", sql, re.IGNORECASE)
+    if where_match and where_match.group(1).strip():
+        notes.append(
+            f"- Only records matching this filter are included: {where_match.group(1).strip()}. "
+            f"Mention the scope if it matters to the answer."
+        )
+
+    if row_count == 0:
+        notes.append("- No records matched. Say so plainly; do not speculate about why.")
+
+    if not notes:
+        notes.append("- These rows are the complete result for the question as asked.")
+
+    return "\n".join(notes)
 
 
 class ExplanationPromptManager:
@@ -81,25 +137,30 @@ Your task is to convert raw database query results into friendly, understandable
 
 ## EXPLANATION PATTERNS:
 
+Every example below states ONLY what its own result contains. None of them
+invents a comparison to a period that was not queried - that would break rule 10.
+
 ### Single Metric (COUNT, SUM, AVG, etc.):
-"The [metric] is [value]. [Optional context about significance]."
-Example: "The total revenue for this month is Rp 125.430.000. This is 12% higher than last month."
+"The [metric] is [value]. [Optional context drawn from this result only]."
+Example: "The total revenue from completed orders is Rp 12.213.000.000, across 6.644 orders."
 
 ### Top/Bottom N:
 "The top [N] [items] are: [list]. [Details about rankings]."
-Example: "The top 3 products by revenue are: Product A (Rp 50.000.000), Product B (Rp 35.000.000), and Product C (Rp 28.000.000)."
+Example: "The top 3 categories by revenue are: Home (Rp 2.617.737.000), Fashion (Rp 2.239.839.000), and Electronics (Rp 1.882.778.000). Home leads Fashion by about Rp 378 million."
 
-### Time Series:
-"[Metric] shows [trend description]. [Peak/trough details]."
-Example: "Sales increased steadily throughout Q1, peaking in March with Rp 98.500.000."
-
-### Comparison:
-"[Period 1] had [value1], while [Period 2] had [value2]. This represents a [change]% [increase/decrease]."
-Example: "January had Rp 45.200.000 in sales, while February had Rp 52.100.000. This is a 15% increase."
+### Single top result:
+"[Item] has the [most/highest] [measure], with [value]."
+Example: "Home has the most products, with 35."
+Never describe a single returned row as though it were the only one that exists.
 
 ### Aggregation/Breakdown:
-"[Category 1] accounts for [percentage/value], [Category 2] for [percentage/value], and so on."
-Example: "Online sales make up 65% of total revenue, while in-store sales account for 35%."
+"[Category 1] accounts for [value], [Category 2] for [value], and so on."
+Example: "Bronze is the largest tier with 537 customers, followed by Silver with 318 and Gold with 145."
+
+### Comparison (ONLY when both sides are present in the result):
+"[Group 1] had [value1], while [Group 2] had [value2]."
+Example: "Bank transfer accounts for Rp 4.876.267.000 in paid payments, ahead of virtual account at Rp 3.638.352.000."
+If the result contains one period or one group, there is nothing to compare - do not invent a baseline.
 
 ## KEY INSIGHTS TO HIGHLIGHT:
 
@@ -338,6 +399,7 @@ Example: "Online sales make up 65% of total revenue, while in-store sales accoun
             formatted_result = json.dumps(query_result.data, indent=2, default=str)
 
         context_block = f"\n{conversation_context}\n" if conversation_context else ""
+        scope = describe_query_scope(generated_sql, query_result.row_count)
 
         user_prompt = f"""User's Question: {user_question}
 {context_block}
@@ -347,6 +409,9 @@ Database Result:
 Columns: {', '.join(query_result.columns)}
 Total Rows: {query_result.row_count}
 Execution Time: {query_result.execution_time}ms
+
+How to read this result:
+{scope}
 
 Please provide a clear, natural language explanation of this result. If the recent conversation history is relevant, connect this answer to the earlier turns so the conversation flows."""
 
