@@ -93,25 +93,130 @@ export default function App() {
   // Detailed inspect drawer trigger state
   const [selectedLog, setSelectedLog] = useState<QueryLog | null>(null);
 
-  // Admin Chat States
+  // Admin Chat States & Persistent Sessions
   const { user: authUser } = useAuthStore();
-  const adminChatSessionId = useMemo(() => {
-    return authUser?.userId ? `admin-session-${authUser.userId}` : "admin-default-session";
+  const [adminSessions, setAdminSessions] = useState<{ id: string; title: string; createdAt: number }[]>([]);
+  const [activeAdminSessionId, setActiveAdminSessionId] = useState<string | null>(null);
+
+  // Initialize and load persistent Admin Sessions from DB / LocalStorage
+  useEffect(() => {
+    if (!authUser?.userId) return;
+    const userId = authUser.userId;
+    const storageKey = `admin_chat_sessions_${userId}`;
+
+    userApi.getSessions(userId)
+      .then((res) => {
+        let loaded = (res.sessions || []).filter(s => s.id.startsWith("admin-") || s.title.toLowerCase().includes("admin"));
+        
+        if (loaded.length === 0) {
+          const saved = localStorage.getItem(storageKey);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                loaded = parsed;
+              }
+            } catch (err) {}
+          }
+        }
+
+        if (loaded.length === 0) {
+          const initialId = `admin-sess-${crypto.randomUUID()}`;
+          const initialSess = { id: initialId, title: "Admin Session 1", createdAt: Date.now() };
+          loaded = [initialSess];
+          userApi.createSession(userId, initialId, initialSess.title).catch(() => {});
+        }
+
+        setAdminSessions(loaded);
+        setActiveAdminSessionId(prev => prev || loaded[0].id);
+        localStorage.setItem(storageKey, JSON.stringify(loaded));
+      })
+      .catch(() => {
+        const saved = localStorage.getItem(storageKey);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setAdminSessions(parsed);
+              setActiveAdminSessionId(parsed[0].id);
+            }
+          } catch (e) {}
+        }
+      });
   }, [authUser?.userId]);
 
-  // Load persistent Admin Chat history from DB
+  // Load chat messages whenever activeAdminSessionId changes
   useEffect(() => {
-    if (!authUser?.userId || !adminChatSessionId) return;
-    userApi.createSession(authUser.userId, adminChatSessionId, "Admin Workspace Chat")
-      .catch(() => {});
-    userApi.getSessionMessages(authUser.userId, adminChatSessionId)
+    if (!authUser?.userId || !activeAdminSessionId) return;
+    setIsChatLoading(true);
+    userApi.getSessionMessages(authUser.userId, activeAdminSessionId)
       .then((res) => {
         if (res.messages && res.messages.length > 0) {
           setChatMessages(res.messages);
+        } else {
+          setChatMessages([
+            {
+              id: "welcome",
+              sender: "ai",
+              text: "Hello! I am your AI Data Analyst assistant with administrative database privileges. Ask me anything about our database, or perform data operations (INSERT, UPDATE, DELETE). For example, try asking 'Show all products in the store' or 'Delete all orders with cancelled status'.",
+              timestamp: Date.now(),
+            },
+          ]);
         }
       })
-      .catch((err) => console.error("Failed to load admin chat history from db:", err));
-  }, [authUser?.userId, adminChatSessionId]);
+      .catch(() => {
+        setChatMessages([
+          {
+            id: "welcome",
+            sender: "ai",
+            text: "Hello! I am your AI Data Analyst assistant with administrative database privileges. Ask me anything about our database, or perform data operations (INSERT, UPDATE, DELETE). For example, try asking 'Show all products in the store' or 'Delete all orders with cancelled status'.",
+            timestamp: Date.now(),
+          },
+        ]);
+      })
+      .finally(() => setIsChatLoading(false));
+  }, [authUser?.userId, activeAdminSessionId]);
+
+  // Create New Admin Session
+  const handleCreateAdminSession = useCallback(() => {
+    if (!authUser?.userId) return;
+    const userId = authUser.userId;
+    const newId = `admin-sess-${crypto.randomUUID()}`;
+    const newTitle = `Admin Session ${adminSessions.length + 1}`;
+    const newSess = { id: newId, title: newTitle, createdAt: Date.now() };
+
+    setAdminSessions((prev) => {
+      const updated = [newSess, ...prev];
+      localStorage.setItem(`admin_chat_sessions_${userId}`, JSON.stringify(updated));
+      return updated;
+    });
+    setActiveAdminSessionId(newId);
+    setChatMessages([
+      {
+        id: "welcome",
+        sender: "ai",
+        text: "Hello! I am your AI Data Analyst assistant with administrative database privileges. Ask me anything about our database, or perform data operations (INSERT, UPDATE, DELETE). For example, try asking 'Show all products in the store' or 'Delete all orders with cancelled status'.",
+        timestamp: Date.now(),
+      },
+    ]);
+    userApi.createSession(userId, newId, newTitle).catch(() => {});
+  }, [authUser?.userId, adminSessions.length]);
+
+  // Delete Admin Session
+  const handleDeleteAdminSession = useCallback((sessionId: string) => {
+    if (!authUser?.userId) return;
+    const userId = authUser.userId;
+
+    userApi.deleteSession(userId, sessionId).catch(() => {});
+    setAdminSessions((prev) => {
+      const filtered = prev.filter((s) => s.id !== sessionId);
+      localStorage.setItem(`admin_chat_sessions_${userId}`, JSON.stringify(filtered));
+      if (activeAdminSessionId === sessionId) {
+        setActiveAdminSessionId(filtered[0]?.id || null);
+      }
+      return filtered;
+    });
+  }, [authUser?.userId, activeAdminSessionId]);
 
   // Fetch real query log history
   const loadQueryLogs = useCallback(() => {
@@ -299,7 +404,8 @@ export default function App() {
     setIsChatLoading(true);
 
     try {
-      const res = await adminApi.ask(queryText, userId, adminChatSessionId, modelProvider);
+      const currentSessionId = activeAdminSessionId || "admin-default-session";
+      const res = await adminApi.ask(queryText, userId, currentSessionId, modelProvider);
 
       let aiMsg: ChatMessage;
 
@@ -387,7 +493,8 @@ export default function App() {
 
     setIsChatLoading(true);
     try {
-      const res = await adminApi.confirm(token, userId, adminChatSessionId);
+      const currentSessionId = activeAdminSessionId || "admin-default-session";
+      const res = await adminApi.confirm(token, userId, currentSessionId);
       // Extract target table name for follow-up suggestions
       const targetTableMatch = res.refreshed_data?.question?.match(/Show all (\w+)/i);
       const tableName = targetTableMatch ? targetTableMatch[1] : "products";
@@ -437,7 +544,8 @@ export default function App() {
 
     setCompareState({ questionText, isLoading: true, result: null, error: null });
     try {
-      const result = await adminApi.askCompare(questionText, userId, adminChatSessionId);
+      const currentSessionId = activeAdminSessionId || "admin-default-session";
+      const result = await adminApi.askCompare(questionText, userId, currentSessionId);
       setCompareState({ questionText, isLoading: false, result, error: null });
     } catch {
       setCompareState({ questionText, isLoading: false, result: null, error: "Comparison failed. Please try again." });
@@ -553,6 +661,11 @@ export default function App() {
               handleConfirmWrite={handleConfirmWrite}
               handleClarificationOption={handleAdminClarificationOption}
               onCompare={handleAdminCompare}
+              adminSessions={adminSessions}
+              activeAdminSessionId={activeAdminSessionId}
+              onSelectAdminSession={setActiveAdminSessionId}
+              onCreateAdminSession={handleCreateAdminSession}
+              onDeleteAdminSession={handleDeleteAdminSession}
             />
           )}
 
