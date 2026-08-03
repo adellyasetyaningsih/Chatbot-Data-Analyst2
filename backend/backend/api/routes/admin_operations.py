@@ -561,7 +561,12 @@ async def admin_ask(request: AdminAskRequest):
             status="error", reject_reason=sql_result.error_message
         )
         add_message(app_client, request.session_id, role="assistant", content=sql_result.error_message or "Failed to generate SQL.")
-        raise HTTPException(status_code=422, detail=sql_result.error_message or "Failed to generate SQL")
+        return {
+            "status": "error",
+            "explanation": sql_result.error_message or "Failed to generate SQL.",
+            "model_provider": request.model_provider,
+            "model_name": model_name
+        }
 
     sql = sql_result.sql.strip().rstrip(";")
     sql_upper = sql.upper()

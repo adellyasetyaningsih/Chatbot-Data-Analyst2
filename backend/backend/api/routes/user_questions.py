@@ -381,7 +381,14 @@ async def ask_question(request: QuestionRequest):
         )
     else:
         add_message(app_client, request.session_id, role="assistant", content=result.get("error", "An error occurred."))
-        raise HTTPException(status_code=422, detail=result.get("error", "Failed to answer question"))
+        return {
+            "status": "error",
+            "explanation": result.get("error", "Failed to answer question."),
+            "data": [],
+            "columns": [],
+            "model_provider": request.model_provider,
+            "model_name": model_name
+        }
 
     return {**result, "model_provider": request.model_provider, "model_name": model_name}
 
