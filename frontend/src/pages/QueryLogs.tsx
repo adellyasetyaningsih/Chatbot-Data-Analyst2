@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from "react";
-import { Search, FileSearch, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, FileSearch, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import type { QueryLog } from "../types/query";
 import { queryLogAuthor } from "../lib/userMapping";
 
 interface QueryLogsProps {
   queryLogs: QueryLog[];
   setSelectedLog: (log: QueryLog) => void;
+  onRefreshLogs?: () => void;
 }
 
 const logsPerPage = 8;
@@ -26,6 +27,7 @@ const matchesDate = (timestampStr: string, filter: string) => {
 export const QueryLogs: React.FC<QueryLogsProps> = ({
   queryLogs,
   setSelectedLog,
+  onRefreshLogs,
 }) => {
   const [logSearch, setLogSearch] = useState("");
   const [logStatusFilter, setLogStatusFilter] = useState<"All" | "Success" | "Failed">("All");
@@ -36,10 +38,12 @@ export const QueryLogs: React.FC<QueryLogsProps> = ({
   // Query logs filtering logic
   const filteredLogs = useMemo(() => {
     return queryLogs.filter((log) => {
-      const matchesSearch =
-        log.question.toLowerCase().includes(logSearch.toLowerCase()) ||
-        log.user.toLowerCase().includes(logSearch.toLowerCase()) ||
-        log.generatedSql.toLowerCase().includes(logSearch.toLowerCase());
+      const q = (log.question || "").toLowerCase();
+      const u = (log.user || "").toLowerCase();
+      const sql = (log.generatedSql || "").toLowerCase();
+      const search = (logSearch || "").toLowerCase();
+
+      const matchesSearch = q.includes(search) || u.includes(search) || sql.includes(search);
 
       const matchesStatus =
         logStatusFilter === "All" || log.status === logStatusFilter;
@@ -55,7 +59,7 @@ export const QueryLogs: React.FC<QueryLogsProps> = ({
           ? isAdmin
           : !isAdmin;
 
-      const matchesDateFilter = matchesDate(log.timestamp, logDateFilter);
+      const matchesDateFilter = matchesDate(log.timestamp || "", logDateFilter);
 
       return matchesSearch && matchesStatus && matchesRole && matchesDateFilter;
     });
@@ -90,7 +94,20 @@ export const QueryLogs: React.FC<QueryLogsProps> = ({
               className="w-full bg-surface-hover border border-border text-slate-100 placeholder:text-text-faint focus:ring-2 focus:ring-accent focus:border-accent pl-9 pr-4 py-2 rounded-lg text-sm focus:outline-none transition-all placeholder:text-xs font-sans"
             />
           </div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Refresh Button */}
+            {onRefreshLogs && (
+              <button
+                type="button"
+                onClick={onRefreshLogs}
+                className="px-3 py-2 bg-surface-hover hover:bg-surface-2 text-text hover:text-accent border border-border rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer font-sans active:scale-95 shadow-sm"
+                title="Refresh query logs history"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-accent" />
+                <span>Refresh Logs</span>
+              </button>
+            )}
+
             {/* Role Author Filter */}
             <select
               value={logRoleFilter}

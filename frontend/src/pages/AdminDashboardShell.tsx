@@ -637,6 +637,7 @@ export default function App() {
               <QueryLogs
                 queryLogs={realQueryLogs}
                 setSelectedLog={setSelectedLog}
+                onRefreshLogs={loadQueryLogs}
               />
             )
           )}
