@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Sparkles, MessageSquarePlus, FileText, User, LogOut, ChevronLeft, Database } from "lucide-react";
+import { Sparkles, MessageSquarePlus, FileText, User, LogOut, ChevronLeft } from "lucide-react";
 import { useUiStore } from "../../store/uiStore";
 import { useSessionStore } from "../../store/sessionStore";
 import { useAuthStore } from "../../store/authStore";
@@ -80,10 +80,6 @@ export const UserSidebar: React.FC = () => {
     navigate("/chat");
   };
 
-  const handleDataClick = () => {
-    navigate("/data");
-  };
-
   const navItemClass = (active = false) =>
     `w-full flex items-center gap-3 p-2.5 rounded-2xl text-sm font-bold transition-all cursor-pointer ${
       active ? "bg-surface-2 text-text" : "text-text-muted hover:text-text hover:bg-surface-2"
@@ -142,14 +138,6 @@ export const UserSidebar: React.FC = () => {
           >
             <Sparkles className="w-4 h-4 text-sand" />
             {!sidebarCollapsed && <span>Chat Room</span>}
-          </button>
-          <button
-            onClick={handleDataClick}
-            className={navItemClass(location.pathname === "/data")}
-            title="Business Database"
-          >
-            <Database className="w-4 h-4 text-emerald-400" />
-            {!sidebarCollapsed && <span>Raw Data</span>}
           </button>
         </div>
 

@@ -1,6 +1,6 @@
 import type { PipelineEvalRun, BenchmarkEvalRun, ProviderBenchmark } from "../types/benchmark";
 import type { QueryLog } from "../types/query";
-import type { ModelProvider } from "../types";
+import type { ModelProvider, DataInsight } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8005";
 
@@ -160,6 +160,8 @@ export interface AskSuccessResponse {
   status: "success";
   generated_sql: string;
   explanation: string;
+  suggested_questions?: string[];
+  insights?: DataInsight[];
   chart_recommendation: ChartRecommendation | Record<string, never>;
   sources: Record<string, unknown>;
   data: Record<string, unknown>[];
@@ -223,14 +225,7 @@ export const userApi = {
   deleteSession: (user_id: string, session_id: string) =>
     requestDelete<{ status: string }>(`/api/user/sessions/${session_id}`, { user_id }),
   getSessionMessages: (user_id: string, session_id: string) =>
-    requestGet<{ messages: any[] }>(`/api/user/sessions/${session_id}/messages`, { user_id }),
-
-  // Raw business-data browsing (read-only, table name validated server-side)
-  getTableRows: (user_id: string, table: string, limit = 100, offset = 0) =>
-    requestGet<{ status: string; data: Record<string, unknown>[]; columns: string[]; table: string }>(
-      `/api/user/tables/${table}/rows`,
-      { user_id, limit: String(limit), offset: String(offset) }
-    )
+    requestGet<{ messages: any[] }>(`/api/user/sessions/${session_id}/messages`, { user_id })
 };
 
 // ============ Schema/table introspection (shared by admin DB Editor & user raw-data viewer) ============
@@ -304,10 +299,10 @@ export const evaluationApi = {
     requestGet<{ questions: BenchmarkQuestionApi[] }>("/api/admin/benchmark-questions", { user_id }),
   addBenchmarkQuestion: (user_id: string, question: string, gold_sql: string, gold_answer: string) =>
     request<BenchmarkQuestionApi>("/api/admin/benchmark-questions", { user_id, question, gold_sql, gold_answer }),
-  runBenchmark: (user_id: string, limit?: number) =>
-    request<{ status: "started"; message: string }>("/api/admin/benchmark-eval/run", { user_id, limit }),
+  runBenchmark: (user_id: string, limit?: number, mode?: "all" | "sql" | "compare" | "pipeline") =>
+    request<{ status: "started"; message: string }>("/api/admin/benchmark-eval/run", { user_id, limit, mode }),
   getBenchmarkRunStatus: (user_id: string) =>
-    requestGet<{ is_running: boolean; error: string | null }>("/api/admin/benchmark-eval/status", { user_id })
+    requestGet<{ is_running: boolean; running_modes: string[]; error: string | null }>("/api/admin/benchmark-eval/status", { user_id })
 };
 
 export interface BenchmarkQuestionApi {

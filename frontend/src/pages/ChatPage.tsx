@@ -19,7 +19,7 @@ import type { CompareResponse } from "../lib/apiClient";
 export const ChatPage: React.FC = () => {
   const { theme, setTheme, initializeUi } = useUiStore();
   const { activeSessionId, initializeSessions, sessions } = useSessionStore();
-  const { messagesBySession, isLoading, submitClarificationAnswer, compareQuestion, initializeChat, fetchSessionMessages } = useChatStore();
+  const { messagesBySession, isLoading, submitUserQuery, submitClarificationAnswer, compareQuestion, initializeChat, fetchSessionMessages } = useChatStore();
   const { initializeNotes } = useNoteStore();
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -128,6 +128,7 @@ export const ChatPage: React.FC = () => {
                       onClarificationSelect={(option) =>
                         activeSessionId && submitClarificationAnswer(activeSessionId, option)
                       }
+                      onSuggestedSelect={(q) => activeSessionId && submitUserQuery(activeSessionId, q)}
                       onCompare={handleCompare}
                     />
                   );

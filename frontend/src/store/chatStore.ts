@@ -126,6 +126,8 @@ async function askBackend(
               res.columns,
               SUPPORTED_CHART_TYPES
             ),
+            suggestedQuestions: res.suggested_questions,
+            insights: res.insights,
             provider: res.model_provider,
             modelName: res.model_name
           };

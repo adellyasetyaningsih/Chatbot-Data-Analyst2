@@ -251,8 +251,8 @@ def build_conversation_context(
 
     lines = "\n\n".join(turns)
     return (
-        "## RECENT CONVERSATION HISTORY:\n"
-        "Use this history to resolve pronouns (it, them, those, etc.) and follow-up requests.\n"
-        "Do not repeat filters from previous queries unless the current request is a follow-up to them.\n\n"
+        "## RECENT CONVERSATION HISTORY & ACTIVE CONTEXT:\n"
+        "Use this history to resolve pronouns (it, them, those, etc.), entities, and follow-up queries.\n"
+        "If the current question is a follow-up (e.g., 'who bought those?', 'what about in Jakarta?'), preserve active WHERE filters (dates, categories, status) from preceding queries.\n\n"
         f"{lines}"
     )

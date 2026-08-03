@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { AlertTriangle, GitCompare, RefreshCw, Trophy } from "lucide-react";
+import { AlertTriangle, GitCompare, RefreshCw, Trophy, Play } from "lucide-react";
 import { evaluationApi, ApiError } from "../lib/apiClient";
 import type { ProviderBenchmark } from "../types/benchmark";
 import { useAuthStore } from "../store/authStore";
@@ -17,7 +17,11 @@ const num = (n: number) => (n > 0 ? n.toLocaleString() : "—");
  * directly - but a model two points better at four times the cost is a
  * different call, and a table showing only accuracy would hide that.
  */
-export const ProviderComparisonPanel: React.FC<{ refreshKey?: number }> = ({ refreshKey = 0 }) => {
+export const ProviderComparisonPanel: React.FC<{
+  refreshKey?: number;
+  onRun?: (mode: "compare") => void;
+  isRunning?: boolean;
+}> = ({ refreshKey = 0, onRun, isRunning = false }) => {
   const { user } = useAuthStore();
   const [providers, setProviders] = useState<ProviderBenchmark[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,9 +65,21 @@ export const ProviderComparisonPanel: React.FC<{ refreshKey?: number }> = ({ ref
 
   return (
     <div className="bg-surface border border-border shadow-lg rounded-xl p-5 space-y-4 font-sans">
-      <div className="flex items-center gap-2">
-        <GitCompare className="w-4 h-4 text-accent" />
-        <h3 className="text-sm font-bold text-text">Model Comparison — Groq vs Gemini</h3>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <GitCompare className="w-4 h-4 text-accent" />
+          <h3 className="text-sm font-bold text-text">Model Comparison — Groq vs Gemini</h3>
+        </div>
+        {onRun && (
+          <button
+            type="button"
+            onClick={() => onRun("compare")}
+            disabled={isRunning}
+            className="px-3 py-1.5 text-xs font-bold rounded-lg bg-accent hover:bg-accent-hover text-white flex gap-1.5 items-center disabled:opacity-50 cursor-pointer transition-colors shadow-sm self-start sm:self-auto"
+          >
+            <Play className="w-3 h-3" /> {isRunning ? "Running..." : "Run Provider Comparison"}
+          </button>
+        )}
       </div>
       <p className="text-[11px] text-text-muted -mt-2">
         Latest run per provider. Same questions, same gold SQL, same comparator — only the model writing the SQL

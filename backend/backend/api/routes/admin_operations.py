@@ -18,7 +18,7 @@ import threading
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Set
 
 from backend.ai.rbac.access_control import get_access_control
 from backend.api.dependencies import require_admin, require_admin_session
@@ -30,6 +30,7 @@ from backend.ai.validators.sql_guard_rbac import (
     get_admin_confirmation_store
 )
 from backend.ai.validators.admin_write_guard import get_admin_write_guard
+from backend.ai.validators.write_intent import has_write_intent
 from backend.ai.utils.supabase_client import get_supabase_client, get_app_db_client
 from backend.ai.utils.supabase_executor import get_supabase_query_executor
 from backend.ai.utils.supabase_schema_loader import get_supabase_schema_loader
@@ -112,19 +113,35 @@ class BenchmarkQuestionRequest(BaseModel):
 class BenchmarkRunRequest(BaseModel):
     user_id: str
     limit: Optional[int] = None
+    mode: Optional[str] = "all"  # "all" | "sql" | "compare" | "pipeline"
 
 
-_benchmark_run_active = False
+_active_eval_modes: Set[str] = set()
 _benchmark_run_error: Optional[str] = None
 _benchmark_run_lock = threading.Lock()
 
 
-def _run_benchmark_in_background(admin_id: str, limit: Optional[int]) -> None:
+def _run_benchmark_in_background(admin_id: str, limit: Optional[int], mode: str = "all") -> None:
     """Run outside the request lifecycle; a suite can take minutes due to LLM rate limits."""
-    global _benchmark_run_active, _benchmark_run_error
+    global _benchmark_run_error
     try:
-        from backend.ai.evaluation.run_benchmark import run_benchmark
-        run_benchmark(admin_id=admin_id, limit=limit)
+        from backend.ai.evaluation.run_pipeline_eval import run_pipeline_eval
+        from backend.ai.evaluation.run_benchmark import run_benchmark, compare_providers
+
+        if mode == "pipeline":
+            run_pipeline_eval(admin_id=admin_id, limit=limit)
+        elif mode == "sql":
+            run_benchmark(admin_id=admin_id, limit=limit, provider="groq")
+        elif mode == "compare":
+            compare_providers(admin_id=admin_id, limit=limit)
+        else:  # "all"
+            try:
+                run_pipeline_eval(admin_id=admin_id, limit=limit)
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception("Background pipeline routing evaluation failed")
+
+            compare_providers(admin_id=admin_id, limit=limit)
     except Exception as exc:
         import logging
         logging.getLogger(__name__).exception("Background benchmark run failed")
@@ -132,7 +149,9 @@ def _run_benchmark_in_background(admin_id: str, limit: Optional[int]) -> None:
             _benchmark_run_error = str(exc) or "Benchmark run failed unexpectedly"
     finally:
         with _benchmark_run_lock:
-            _benchmark_run_active = False
+            _active_eval_modes.discard(mode)
+            if mode == "all":
+                _active_eval_modes.clear()
 
 
 @router.post("/create")
@@ -268,9 +287,7 @@ async def confirm_action(request: ConfirmRequest):
 
         executed_sql, rows, affected_count = confirmation_store.confirm(request.token)
 
-        # Re-run the read the admin was last looking at, so the table on
-        # screen reflects the write instead of going stale. Best-effort: the
-        # write already succeeded, so a failed refresh must not fail the call.
+        # Re-run the read the admin was last looking at, or query the full table directly.
         refreshed_data = None
         try:
             previous = find_last_select(app_client, request.session_id)
@@ -282,20 +299,38 @@ async def confirm_action(request: ConfirmRequest):
                     refreshed_rows, refreshed_cols, previous["question"], previous["sql"]
                 )
                 refreshed_data = {
-                    "question": previous["question"],
+                    "question": f"Show all records for: {previous['question']}",
                     "sql": previous["sql"],
                     "data": refreshed_rows,
                     "columns": refreshed_cols,
                     "chart_type": chart_res.chart_type
                 }
-        except Exception as e:
-            logger.log_event(
-                event_type=EventType.SQL_EXECUTION,
-                message=f"Failed to auto-refresh previous SELECT: {str(e)}",
-                user_id=request.user_id,
-                session_id=request.session_id,
-                status="warning"
-            )
+        except Exception:
+            pass
+
+        if not refreshed_data:
+            try:
+                match = re.search(r'(?:FROM|INTO|UPDATE)\s+["`]?([a-zA-Z0-9_]+)["`]?', executed_sql, re.IGNORECASE)
+                if match:
+                    target_table = match.group(1)
+                    refreshed_rows, refreshed_cols, _ = get_supabase_query_executor().execute(
+                        f"SELECT * FROM {target_table}"
+                    )
+                    refreshed_data = {
+                        "question": f"Show all {target_table}",
+                        "sql": f"SELECT * FROM {target_table}",
+                        "data": refreshed_rows,
+                        "columns": refreshed_cols,
+                        "chart_type": "table"
+                    }
+            except Exception as e:
+                logger.log_event(
+                    event_type=EventType.SQL_EXECUTION,
+                    message=f"Failed to auto-refresh database state proof: {str(e)}",
+                    user_id=request.user_id,
+                    session_id=request.session_id,
+                    status="warning"
+                )
 
         analytics_service.log_admin_write(request.user_id, executed_sql, affected_count)
 
@@ -491,10 +526,14 @@ async def admin_ask(request: AdminAskRequest):
         if last.get("role") == "assistant" and last.get("needs_clarification"):
             is_follow_up = True
 
+    is_write_req = has_write_intent(effective_question) or any(
+        kw in effective_question.lower() for kw in ["delete", "insert", "update", "hapus", "tambah", "ubah", "drop", "alter"]
+    )
+
     sql_result = sql_generator.generate(
         effective_question,
         schema_definition,
-        check_ambiguity=not is_follow_up,
+        check_ambiguity=not is_follow_up and not is_write_req,
         override_system_prompt=ADMIN_WRITE_SYSTEM_PROMPT,
         conversation_context=conversation_context,
         allow_writes=True
@@ -502,7 +541,7 @@ async def admin_ask(request: AdminAskRequest):
 
     add_message(app_client, request.session_id, role="user", content=request.question)
 
-    if sql_result.is_ambiguous:
+    if sql_result.is_ambiguous and not is_write_req:
         add_message(
             app_client, request.session_id, role="assistant",
             content=sql_result.clarification_question or "", needs_clarification=True
@@ -524,8 +563,8 @@ async def admin_ask(request: AdminAskRequest):
         add_message(app_client, request.session_id, role="assistant", content=sql_result.error_message or "Failed to generate SQL.")
         raise HTTPException(status_code=422, detail=sql_result.error_message or "Failed to generate SQL")
 
-    sql = sql_result.sql
-    sql_upper = sql.strip().upper()
+    sql = sql_result.sql.strip().rstrip(";")
+    sql_upper = sql.upper()
 
     try:
         auth = access_control.authorize_sql(admin_context, sql)
@@ -602,6 +641,7 @@ async def admin_ask(request: AdminAskRequest):
             "status": "pending_confirmation",
             "operation": auth["operation"],
             "generated_sql": sql,
+            "sql_preview": sql,
             "model_provider": request.model_provider,
             "model_name": model_name,
             **proposal
@@ -856,29 +896,37 @@ async def add_benchmark_question(request: BenchmarkQuestionRequest):
 @router.post("/benchmark-eval/run", status_code=202)
 async def run_benchmark_evaluation(request: BenchmarkRunRequest, background_tasks: BackgroundTasks):
     """Start a real persisted evaluation run without blocking the HTTP request."""
-    global _benchmark_run_active, _benchmark_run_error
-    app_client = get_app_db_client()
+    global _benchmark_run_error
     require_admin(request.user_id)
+    mode = request.mode or "all"
 
     with _benchmark_run_lock:
-        if _benchmark_run_active:
-            raise HTTPException(status_code=409, detail="A benchmark evaluation is already running")
-        _benchmark_run_active = True
+        if mode == "all" and len(_active_eval_modes) > 0:
+            raise HTTPException(status_code=409, detail="An evaluation run is already in progress")
+        if mode in _active_eval_modes or "all" in _active_eval_modes:
+            raise HTTPException(status_code=409, detail=f"Evaluation mode '{mode}' is already running")
+
+        _active_eval_modes.add(mode)
         _benchmark_run_error = None
+
     if request.limit is not None and request.limit < 1:
         with _benchmark_run_lock:
-            _benchmark_run_active = False
+            _active_eval_modes.discard(mode)
         raise HTTPException(status_code=400, detail="limit must be at least 1")
 
-    background_tasks.add_task(_run_benchmark_in_background, request.user_id, request.limit)
-    return {"status": "started", "message": "Benchmark evaluation started. Refresh results after it completes."}
+    background_tasks.add_task(_run_benchmark_in_background, request.user_id, request.limit, mode)
+    return {"status": "started", "message": f"Benchmark evaluation ({mode}) started. Refresh results after it completes."}
 
 
 @router.get("/benchmark-eval/status")
 async def get_benchmark_evaluation_status(user_id: str):
     require_admin(user_id)
     with _benchmark_run_lock:
-        return {"is_running": _benchmark_run_active, "error": _benchmark_run_error}
+        return {
+            "is_running": len(_active_eval_modes) > 0,
+            "running_modes": list(_active_eval_modes),
+            "error": _benchmark_run_error
+        }
 
 
 @router.post("/schema/refresh")

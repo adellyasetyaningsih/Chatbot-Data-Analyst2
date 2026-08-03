@@ -48,6 +48,7 @@ class QuestionResponse(BaseModel):
     status: str
     generated_sql: str = ""
     explanation: str = ""
+    suggested_questions: list = []
     chart_recommendation: dict = {}
     plotly_figure: dict = {}
     insights: list = []
@@ -84,10 +85,11 @@ def _make_sql_executor_callback(sql_guard_rbac, query_executor, user_context, us
             raise PermissionError(validation["error"])
 
         max_rows = validation.get("max_rows")
-        if max_rows and "LIMIT" not in sql.upper():
-            sql = f"{sql} LIMIT {max_rows}"
+        clean_sql = sql.strip().rstrip(";")
+        if max_rows and "LIMIT" not in clean_sql.upper():
+            clean_sql = f"{clean_sql} LIMIT {max_rows}"
 
-        return query_executor.execute(sql)
+        return query_executor.execute(clean_sql)
 
     return execute_sql_callback
 

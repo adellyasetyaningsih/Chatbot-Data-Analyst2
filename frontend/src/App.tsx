@@ -7,7 +7,6 @@ import { ErrorBoundary } from "./components/UI/ErrorBoundary";
 import { Login } from "./pages/Login";
 import { ChatPage } from "./pages/ChatPage";
 import { Profile } from "./pages/Profile";
-import { RawDataViewer } from "./pages/RawDataViewer";
 import AdminDashboardShell from "./pages/AdminDashboardShell";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 
@@ -93,14 +92,6 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Profile />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/data"
-            element={
-              <ProtectedRoute>
-                <RawDataViewer />
               </ProtectedRoute>
             }
           />

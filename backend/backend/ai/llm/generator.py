@@ -812,6 +812,9 @@ class PipelineOrchestrator:
         # prose explanation above, which only highlights insights at its
         # own discretion.
         insights = self.insight_extractor.extract_insights(data, columns)
+        suggested_questions = self.explanation_generator.explanation_manager.generate_suggested_questions(
+            user_question, sql, columns, data
+        )
 
         # ============ Step 8: Format Final Response ============
         logger.info("Pipeline completed successfully")
@@ -821,6 +824,7 @@ class PipelineOrchestrator:
             "user_question": user_question,
             "generated_sql": sql,
             "explanation": explanation_result.explanation,
+            "suggested_questions": suggested_questions,
             "chart_recommendation": {
                 "type": chart_result.chart_type,
                 "confidence": chart_result.confidence_score,

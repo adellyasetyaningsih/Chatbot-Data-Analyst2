@@ -557,10 +557,50 @@ Please provide a clear, natural language explanation of this result. If the rece
         explanation = explanation.replace("```", "")
         
         # Clean up extra horizontal whitespace, but preserve newlines
-        lines = [" ".join(line.split()) for line in explanation.splitlines()]
-        explanation = "\n".join(lines)
-        
         return explanation.strip()
+
+    def generate_suggested_questions(
+        self,
+        user_question: str,
+        sql: Optional[str] = None,
+        columns: Optional[List[str]] = None,
+        data: Optional[List[Dict[str, Any]]] = None
+    ) -> List[str]:
+        """
+        Generate 2-3 contextual follow-up questions for data exploration.
+        """
+        suggestions = []
+        q_lower = user_question.lower()
+
+        first_item = ""
+        if data and isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
+            first_val = list(data[0].values())[0]
+            if first_val:
+                first_item = str(first_val)
+
+        if "top" in q_lower or "highest" in q_lower or "best" in q_lower or "teratas" in q_lower:
+            if first_item:
+                suggestions.append(f"Show details for {first_item}")
+            suggestions.append("Compare this with the lowest performing items")
+            suggestions.append("Show the monthly trend for these results")
+        elif "sales" in q_lower or "revenue" in q_lower or "total" in q_lower or "penjualan" in q_lower:
+            suggestions.append("Which payment methods contributed most to this revenue?")
+            suggestions.append("Show customer distribution by tier for these sales")
+            suggestions.append("Compare this revenue to the previous month")
+        elif "customer" in q_lower or "user" in q_lower or "pelanggan" in q_lower:
+            suggestions.append("What are the top purchased products by these customers?")
+            suggestions.append("Show customer distribution by city")
+            suggestions.append("List customers with more than 3 orders")
+        elif "product" in q_lower or "item" in q_lower or "produk" in q_lower:
+            suggestions.append("Show stock status and pricing for these products")
+            suggestions.append("Which category has the highest sales volume?")
+            suggestions.append("List products with zero sales in the last month")
+        else:
+            suggestions.append("Show total revenue and order count for this data")
+            suggestions.append("Break down these results by category")
+            suggestions.append("Show monthly trend for these results")
+
+        return suggestions[:3]
 
 
 # ============ Singleton Instance ============

@@ -9,9 +9,7 @@ interface AdminChatProps {
   chatMessages: Message[];
   setChatMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   isChatLoading: boolean;
-  chatInput: string;
-  setChatInput: (input: string) => void;
-  handleAdminChatSubmit: (e: React.FormEvent) => void;
+  handleAdminChatSubmit: (queryText: string) => void;
   handleConfirmWrite: (messageId: string, token: string) => void;
   handleClarificationOption: (option: string) => void;
   onCompare: (questionText: string) => void;
@@ -21,14 +19,14 @@ export const AdminChat: React.FC<AdminChatProps> = ({
   chatMessages,
   setChatMessages,
   isChatLoading,
-  chatInput,
-  setChatInput,
   handleAdminChatSubmit,
   handleConfirmWrite,
   handleClarificationOption,
   onCompare,
 }) => {
+  const [chatInput, setChatInput] = React.useState("");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const [micLang, setMicLang] = React.useState<"id-ID" | "en-US">("id-ID");
 
   const {
     isSupported: micSupported,
@@ -38,8 +36,9 @@ export const AdminChat: React.FC<AdminChatProps> = ({
     start: startListening,
     stop: stopListening,
   } = useSpeechRecognition({
+    lang: micLang,
     onResult: (transcript) => {
-      setChatInput(chatInput ? `${chatInput.trim()} ${transcript}` : transcript);
+      setChatInput((prev) => (prev ? `${prev.trim()} ${transcript}` : transcript));
     },
   });
 
@@ -110,8 +109,10 @@ export const AdminChat: React.FC<AdminChatProps> = ({
               message={msg}
               questionText={precedingQuestion}
               onClarificationSelect={handleClarificationOption}
+              onSuggestedSelect={handleClarificationOption}
               onConfirmWrite={handleConfirmWrite}
               onCompare={onCompare}
+              hideSaveObservation={true}
             />
           );
         })}
@@ -207,7 +208,13 @@ export const AdminChat: React.FC<AdminChatProps> = ({
 
       {/* Text Input area */}
       <form
-        onSubmit={handleAdminChatSubmit}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!chatInput.trim()) return;
+          const text = chatInput.trim();
+          setChatInput("");
+          handleAdminChatSubmit(text);
+        }}
         className="p-4 border-t border-border bg-surface flex gap-2 font-sans"
       >
         <input
@@ -220,9 +227,17 @@ export const AdminChat: React.FC<AdminChatProps> = ({
         />
         <button
           type="button"
+          onClick={() => setMicLang(micLang === "id-ID" ? "en-US" : "id-ID")}
+          className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-surface-2 border border-border text-text-muted hover:text-accent hover:border-accent/40 cursor-pointer transition-all shadow-2xs font-mono self-center"
+          title={`Voice Language: ${micLang === "id-ID" ? "Bahasa Indonesia (id-ID)" : "English (en-US)"}. Click to switch.`}
+        >
+          {micLang === "id-ID" ? "🇮🇩 ID" : "🇺🇸 EN"}
+        </button>
+        <button
+          type="button"
           onClick={handleMicClick}
           disabled={!micSupported}
-          title={micSupported ? "Voice input" : "Voice input unavailable in this browser"}
+          title={micSupported ? `Voice input (${micLang})` : "Voice input unavailable in this browser"}
           className={`p-3 rounded-full transition-all cursor-pointer flex items-center justify-center flex-shrink-0 disabled:cursor-not-allowed disabled:opacity-40 ${
             isListening
               ? "bg-accent text-white animate-pulse"

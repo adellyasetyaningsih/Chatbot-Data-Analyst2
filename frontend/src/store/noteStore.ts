@@ -6,23 +6,26 @@ import { useAuthStore } from "./authStore";
 interface NoteState {
   notes: Note[];
   selectedNoteId: string | null;
-  createNote: (title: string, content: string, sessionId: string) => void;
-  updateNote: (id: string, title: string, content: string, sessionId: string) => void;
+  createNote: (title: string, content: string, sessionId: string, category?: string) => string;
+  updateNote: (id: string, title: string, content: string, sessionId: string, category?: string, isPinned?: boolean) => void;
+  togglePinNote: (id: string) => void;
   deleteNote: (id: string) => Promise<void>;
   setSelectedNoteId: (id: string | null) => void;
   initializeNotes: () => void;
 }
 
-export const useNoteStore = create<NoteState>((set) => ({
+export const useNoteStore = create<NoteState>((set, get) => ({
   notes: [],
   selectedNoteId: null,
 
-  createNote: (title, content, sessionId) => {
+  createNote: (title, content, sessionId, category = "General") => {
     const newNote: Note = {
       id: `note-${Date.now()}`,
-      title: title || "Untitled Note",
+      title: title || "Untitled Observation",
       content,
       sessionId,
+      category,
+      isPinned: false,
       lastModified: Date.now()
     };
 
@@ -38,14 +41,18 @@ export const useNoteStore = create<NoteState>((set) => ({
     if (userId) {
       notesApi.save(userId, newNote).catch((e) => console.error("Failed to save note to db:", e));
     }
+    return newNote.id;
   },
 
-  updateNote: (id, title, content, sessionId) => {
+  updateNote: (id, title, content, sessionId, category, isPinned) => {
+    const existing = get().notes.find((n) => n.id === id);
     const updatedNote: Note = {
       id,
-      title: title || "Untitled Note",
+      title: title || "Untitled Observation",
       content,
       sessionId,
+      category: category ?? existing?.category ?? "General",
+      isPinned: isPinned ?? existing?.isPinned ?? false,
       lastModified: Date.now()
     };
 
@@ -61,6 +68,12 @@ export const useNoteStore = create<NoteState>((set) => ({
     if (userId) {
       notesApi.save(userId, updatedNote).catch((e) => console.error("Failed to update note in db:", e));
     }
+  },
+
+  togglePinNote: (id) => {
+    const note = get().notes.find((n) => n.id === id);
+    if (!note) return;
+    get().updateNote(id, note.title, note.content, note.sessionId, note.category, !note.isPinned);
   },
 
   deleteNote: async (id) => {

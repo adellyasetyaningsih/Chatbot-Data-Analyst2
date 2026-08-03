@@ -8,7 +8,7 @@ import type { Message as ChatMessage } from "../types";
 import { useAuth } from "../hooks/useAuth";
 import { useAuthStore } from "../store/authStore";
 import { useUiStore } from "../store/uiStore";
-import { adminApi, userManagementApi, analyticsApi, evaluationApi, ApiError, type CompareResponse, type AnalyticsSummary } from "../lib/apiClient";
+import { adminApi, userApi, userManagementApi, analyticsApi, evaluationApi, ApiError, type CompareResponse, type AnalyticsSummary } from "../lib/apiClient";
 import { mapChartRecommendation, SUPPORTED_CHART_TYPES } from "../lib/chartMapping";
 import { mapManagedUser, toApiStatus } from "../lib/userMapping";
 import { ComparisonModal } from "../components/Chat/ComparisonModal";
@@ -95,7 +95,23 @@ export default function App() {
 
   // Admin Chat States
   const { user: authUser } = useAuthStore();
-  const [adminChatSessionId] = useState(() => crypto.randomUUID());
+  const adminChatSessionId = useMemo(() => {
+    return authUser?.userId ? `admin-session-${authUser.userId}` : "admin-default-session";
+  }, [authUser?.userId]);
+
+  // Load persistent Admin Chat history from DB
+  useEffect(() => {
+    if (!authUser?.userId || !adminChatSessionId) return;
+    userApi.createSession(authUser.userId, adminChatSessionId, "Admin Workspace Chat")
+      .catch(() => {});
+    userApi.getSessionMessages(authUser.userId, adminChatSessionId)
+      .then((res) => {
+        if (res.messages && res.messages.length > 0) {
+          setChatMessages(res.messages);
+        }
+      })
+      .catch((err) => console.error("Failed to load admin chat history from db:", err));
+  }, [authUser?.userId, adminChatSessionId]);
 
   // Fetch real query log history
   const loadQueryLogs = useCallback(() => {
@@ -219,7 +235,6 @@ export default function App() {
     }
   };
 
-  const [chatInput, setChatInput] = useState("");
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
@@ -254,21 +269,18 @@ export default function App() {
   }, [analyticsSummary, benchmarkAccuracy, managedUsers]);
 
   // Admin Chat Submit Handler - real NL-to-SQL pipeline via /api/admin/ask
-  const handleAdminChatSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput) return;
+  const submitAdminChatQuery = async (queryText: string) => {
+    if (!queryText.trim() || isChatLoading) return;
 
     const userId = authUser?.userId;
-    const userQuestion = chatInput;
 
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}-user`,
       sender: "user",
-      text: userQuestion,
+      text: queryText,
       timestamp: Date.now(),
     };
     setChatMessages((prev) => [...prev, userMsg]);
-    setChatInput("");
 
     if (!userId) {
       setChatMessages((prev) => [
@@ -287,7 +299,7 @@ export default function App() {
     setIsChatLoading(true);
 
     try {
-      const res = await adminApi.ask(userQuestion, userId, adminChatSessionId, modelProvider);
+      const res = await adminApi.ask(queryText, userId, adminChatSessionId, modelProvider);
 
       let aiMsg: ChatMessage;
 
@@ -328,6 +340,8 @@ export default function App() {
           sql: res.generated_sql,
           message: `Query OK, ${res.data.length} row(s) returned.`,
           resultPreview: res.data.length > 0 ? { columns: res.columns, rows: res.data } : undefined,
+          suggestedQuestions: (res as any).suggested_questions,
+          insights: (res as any).insights,
           chartData: mapChartRecommendation(
             (res.chart_recommendation as { type?: string })?.type,
             res.data,
@@ -358,6 +372,14 @@ export default function App() {
     }
   };
 
+  const handleAdminChatSubmit = (queryText: string) => {
+    submitAdminChatQuery(queryText);
+  };
+
+  const handleAdminClarificationOption = (option: string) => {
+    submitAdminChatQuery(option);
+  };
+
   // Confirm & execute a previously proposed write (INSERT/UPDATE/DELETE)
   const handleConfirmWrite = async (messageId: string, token: string) => {
     const userId = authUser?.userId;
@@ -366,6 +388,10 @@ export default function App() {
     setIsChatLoading(true);
     try {
       const res = await adminApi.confirm(token, userId, adminChatSessionId);
+      // Extract target table name for follow-up suggestions
+      const targetTableMatch = res.refreshed_data?.question?.match(/Show all (\w+)/i);
+      const tableName = targetTableMatch ? targetTableMatch[1] : "products";
+
       setChatMessages((prev) =>
         prev.map((m) =>
           m.id === messageId
@@ -375,35 +401,18 @@ export default function App() {
                   ? { ...m.pendingConfirmation, resolved: "confirmed" as const }
                   : undefined,
                 status: "Success" as const,
+                text: `✅ ${m.pendingConfirmation?.operation.toUpperCase() || "Write"} operation executed successfully! ${res.affected_rows} row(s) affected.`,
                 message: `Query OK, ${res.affected_rows} row(s) affected.`,
                 resultPreview: res.data.length > 0 ? { columns: Object.keys(res.data[0]), rows: res.data } : undefined,
+                suggestedQuestions: [
+                  `Show all ${tableName}`,
+                  `Show breakdown of ${tableName}`,
+                  `Show total count of ${tableName}`
+                ],
               }
             : m
         )
       );
-
-      // Automatically append refreshed SELECT result message if present!
-      if (res.refreshed_data) {
-        const refreshedMsg: ChatMessage = {
-          id: `msg-${Date.now()}-refreshed`,
-          sender: "ai",
-          text: `Refreshed results reflecting the latest database state for: "${res.refreshed_data.question}"`,
-          timestamp: Date.now(),
-          status: "Success",
-          sql: res.refreshed_data.sql,
-          message: `Query OK, ${res.refreshed_data.data.length} row(s) returned.`,
-          resultPreview: res.refreshed_data.data.length > 0 
-            ? { columns: res.refreshed_data.columns, rows: res.refreshed_data.data } 
-            : undefined,
-          chartData: mapChartRecommendation(
-            res.refreshed_data.chart_type,
-            res.refreshed_data.data,
-            res.refreshed_data.columns,
-            SUPPORTED_CHART_TYPES
-          )
-        };
-        setChatMessages((prev) => [...prev, refreshedMsg]);
-      }
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Failed to confirm the write.";
       setChatMessages((prev) => [
@@ -420,10 +429,6 @@ export default function App() {
     } finally {
       setIsChatLoading(false);
     }
-  };
-
-  const handleAdminClarificationOption = (option: string) => {
-    setChatInput(option);
   };
 
   const handleAdminCompare = async (questionText: string) => {
@@ -544,8 +549,6 @@ export default function App() {
               chatMessages={chatMessages}
               setChatMessages={setChatMessages}
               isChatLoading={isChatLoading}
-              chatInput={chatInput}
-              setChatInput={setChatInput}
               handleAdminChatSubmit={handleAdminChatSubmit}
               handleConfirmWrite={handleConfirmWrite}
               handleClarificationOption={handleAdminClarificationOption}

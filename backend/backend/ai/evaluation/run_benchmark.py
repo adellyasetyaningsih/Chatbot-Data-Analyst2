@@ -443,7 +443,11 @@ def compare_providers(admin_id: str = None, limit: int = None,
         print("\n" + "=" * 70)
         print(f"BENCHMARK: {provider}")
         print("=" * 70)
-        summaries[provider] = run_benchmark(admin_id=admin_id, limit=limit, provider=provider)
+        try:
+            summaries[provider] = run_benchmark(admin_id=admin_id, limit=limit, provider=provider)
+        except Exception as exc:
+            logger.warning(f"Benchmark failed for provider {provider}: {exc}")
+            summaries[provider] = {"error": str(exc), "total_questions": 0, "execution_accuracy": 0.0}
 
     print("\n" + "=" * 70)
     print("PROVIDER COMPARISON")
