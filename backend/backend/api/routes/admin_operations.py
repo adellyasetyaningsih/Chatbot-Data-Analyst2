@@ -334,6 +334,17 @@ async def confirm_action(request: ConfirmRequest):
 
         analytics_service.log_admin_write(request.user_id, executed_sql, affected_count)
 
+        log_query(
+            app_client,
+            user_id=request.user_id,
+            session_id=request.session_id,
+            nl_query=f"EXECUTE WRITE: {executed_sql}",
+            sql_generated=executed_sql,
+            status="success",
+            exec_time_ms=exec_time,
+            model_provider="groq"
+        )
+
         # The write may have introduced a value the schema context doesn't
         # mention yet (a new product category, a new city). Drop the cached
         # schema so the next question is grounded in what the database now
