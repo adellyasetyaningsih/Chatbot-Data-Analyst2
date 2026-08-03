@@ -221,6 +221,19 @@ export default function App() {
     });
   }, [authUser?.userId, activeAdminSessionId]);
 
+  // Rename Admin Session
+  const handleRenameAdminSession = useCallback((sessionId: string, newTitle: string) => {
+    if (!authUser?.userId) return;
+    const userId = authUser.userId;
+
+    setAdminSessions((prev) => {
+      const updated = prev.map((s) => (s.id === sessionId ? { ...s, title: newTitle } : s));
+      localStorage.setItem(`admin_chat_sessions_${userId}`, JSON.stringify(updated));
+      return updated;
+    });
+    userApi.renameSession(userId, sessionId, newTitle).catch((e) => console.error("Failed to rename admin session:", e));
+  }, [authUser?.userId]);
+
   // Fetch real query log history
   const loadQueryLogs = useCallback(() => {
     if (!authUser?.userId) return;
@@ -381,6 +394,15 @@ export default function App() {
     if (!queryText.trim() || isChatLoading) return;
 
     const userId = authUser?.userId;
+
+    // Auto-rename session on first question if title is generic
+    if (activeAdminSessionId && userId) {
+      const activeSess = adminSessions.find((s) => s.id === activeAdminSessionId);
+      if (activeSess && (activeSess.title.startsWith("Admin Session ") || activeSess.title.startsWith("New Chat"))) {
+        const autoTitle = queryText.length > 30 ? `${queryText.slice(0, 30)}...` : queryText;
+        handleRenameAdminSession(activeAdminSessionId, autoTitle);
+      }
+    }
 
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}-user`,
@@ -669,6 +691,7 @@ export default function App() {
               onSelectAdminSession={setActiveAdminSessionId}
               onCreateAdminSession={handleCreateAdminSession}
               onDeleteAdminSession={handleDeleteAdminSession}
+              onRenameAdminSession={handleRenameAdminSession}
             />
           )}
 

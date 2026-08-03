@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from "react";
-import { Sparkles, Trash2, RefreshCw, Mic, Square, MicOff, Send, MessageSquarePlus, Plus } from "lucide-react";
+import { Sparkles, Trash2, RefreshCw, Mic, Square, MicOff, Send, MessageSquarePlus, Plus, Edit2 } from "lucide-react";
 import type { Message } from "../types";
 import { ChatBubble } from "../components/Chat/ChatBubble";
 import { ModelSelector } from "../components/Chat/ModelSelector";
@@ -18,6 +18,7 @@ interface AdminChatProps {
   onSelectAdminSession?: (sessionId: string) => void;
   onCreateAdminSession?: () => void;
   onDeleteAdminSession?: (sessionId: string) => void;
+  onRenameAdminSession?: (sessionId: string, newTitle: string) => void;
 }
 
 export const AdminChat: React.FC<AdminChatProps> = ({
@@ -33,6 +34,7 @@ export const AdminChat: React.FC<AdminChatProps> = ({
   onSelectAdminSession,
   onCreateAdminSession,
   onDeleteAdminSession,
+  onRenameAdminSession,
 }) => {
   const [chatInput, setChatInput] = React.useState("");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -101,17 +103,38 @@ export const AdminChat: React.FC<AdminChatProps> = ({
 
           {/* Admin Session Selector Dropdown */}
           {adminSessions.length > 0 && onSelectAdminSession && (
-            <select
-              value={activeAdminSessionId || ""}
-              onChange={(e) => onSelectAdminSession(e.target.value)}
-              className="bg-surface-hover text-xs font-bold px-3 py-1.5 border border-border rounded-xl text-text focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer font-sans max-w-[180px] truncate"
-            >
-              {adminSessions.map((sess) => (
-                <option key={sess.id} value={sess.id}>
-                  {sess.title}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-1">
+              <select
+                value={activeAdminSessionId || ""}
+                onChange={(e) => onSelectAdminSession(e.target.value)}
+                className="bg-surface-hover text-xs font-bold px-3 py-1.5 border border-border rounded-xl text-text focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer font-sans max-w-[180px] truncate"
+              >
+                {adminSessions.map((sess) => (
+                  <option key={sess.id} value={sess.id}>
+                    {sess.title}
+                  </option>
+                ))}
+              </select>
+
+              {/* Rename Active Session Button */}
+              {activeAdminSessionId && onRenameAdminSession && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const activeSess = adminSessions.find((s) => s.id === activeAdminSessionId);
+                    const currentTitle = activeSess?.title || "";
+                    const newTitle = prompt("Enter new title for this admin chat session:", currentTitle);
+                    if (newTitle && newTitle.trim() && newTitle.trim() !== currentTitle) {
+                      onRenameAdminSession(activeAdminSessionId, newTitle.trim());
+                    }
+                  }}
+                  className="p-1.5 border border-border bg-surface-2/50 hover:bg-surface-2 text-text-muted hover:text-text rounded-xl text-xs font-bold transition-all flex items-center justify-center cursor-pointer font-sans"
+                  title="Rename current session"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           )}
 
           <ModelSelector />
