@@ -106,8 +106,9 @@ export default function App() {
 
     userApi.getSessions(userId)
       .then((res) => {
-        let loaded = (res.sessions || []).filter(s => s.id.startsWith("admin-") || s.title.toLowerCase().includes("admin"));
-        
+        let loaded = res.sessions || [];
+
+        // If DB returns empty, check local storage
         if (loaded.length === 0) {
           const saved = localStorage.getItem(storageKey);
           if (saved) {
@@ -120,18 +121,20 @@ export default function App() {
           }
         }
 
+        // If still empty, create initial welcome admin session
         if (loaded.length === 0) {
-          const initialId = `admin-sess-${crypto.randomUUID()}`;
+          const initialId = crypto.randomUUID();
           const initialSess = { id: initialId, title: "Admin Session 1", createdAt: Date.now() };
           loaded = [initialSess];
-          userApi.createSession(userId, initialId, initialSess.title).catch(() => {});
+          userApi.createSession(userId, initialId, initialSess.title).catch((e) => console.error("Failed to create admin session:", e));
         }
 
         setAdminSessions(loaded);
-        setActiveAdminSessionId(prev => prev || loaded[0].id);
+        setActiveAdminSessionId((prev) => prev || loaded[0].id);
         localStorage.setItem(storageKey, JSON.stringify(loaded));
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("Failed to load admin sessions from DB:", err);
         const saved = localStorage.getItem(storageKey);
         if (saved) {
           try {
@@ -181,7 +184,7 @@ export default function App() {
   const handleCreateAdminSession = useCallback(() => {
     if (!authUser?.userId) return;
     const userId = authUser.userId;
-    const newId = `admin-sess-${crypto.randomUUID()}`;
+    const newId = crypto.randomUUID();
     const newTitle = `Admin Session ${adminSessions.length + 1}`;
     const newSess = { id: newId, title: newTitle, createdAt: Date.now() };
 
@@ -199,7 +202,7 @@ export default function App() {
         timestamp: Date.now(),
       },
     ]);
-    userApi.createSession(userId, newId, newTitle).catch(() => {});
+    userApi.createSession(userId, newId, newTitle).catch((e) => console.error("Failed to save admin session:", e));
   }, [authUser?.userId, adminSessions.length]);
 
   // Delete Admin Session
