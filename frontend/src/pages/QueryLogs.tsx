@@ -29,6 +29,7 @@ export const QueryLogs: React.FC<QueryLogsProps> = ({
 }) => {
   const [logSearch, setLogSearch] = useState("");
   const [logStatusFilter, setLogStatusFilter] = useState<"All" | "Success" | "Failed">("All");
+  const [logRoleFilter, setLogRoleFilter] = useState<"All" | "Admin" | "User">("All");
   const [logDateFilter, setLogDateFilter] = useState<"All" | "Today" | "7days" | "30days">("All");
   const [logCurrentPage, setLogCurrentPage] = useState(1);
 
@@ -42,11 +43,23 @@ export const QueryLogs: React.FC<QueryLogsProps> = ({
 
       const matchesStatus =
         logStatusFilter === "All" || log.status === logStatusFilter;
+
+      const userLower = (log.user || "").toLowerCase();
+      const emailLower = (log.userEmail || "").toLowerCase();
+      const isAdmin = userLower.includes("admin") || emailLower.includes("admin");
+
+      const matchesRole =
+        logRoleFilter === "All"
+          ? true
+          : logRoleFilter === "Admin"
+          ? isAdmin
+          : !isAdmin;
+
       const matchesDateFilter = matchesDate(log.timestamp, logDateFilter);
 
-      return matchesSearch && matchesStatus && matchesDateFilter;
+      return matchesSearch && matchesStatus && matchesRole && matchesDateFilter;
     });
-  }, [queryLogs, logSearch, logStatusFilter, logDateFilter]);
+  }, [queryLogs, logSearch, logStatusFilter, logRoleFilter, logDateFilter]);
 
   // Paginated logs
   const paginatedLogs = useMemo(() => {
@@ -78,6 +91,20 @@ export const QueryLogs: React.FC<QueryLogsProps> = ({
             />
           </div>
           <div className="flex items-center gap-2.5">
+            {/* Role Author Filter */}
+            <select
+              value={logRoleFilter}
+              onChange={(e) => {
+                setLogRoleFilter(e.target.value as any);
+                setLogCurrentPage(1);
+              }}
+              className="bg-surface-hover text-xs font-bold px-3 py-2 border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer font-sans"
+            >
+              <option value="All">All Authors (Users & Admins)</option>
+              <option value="Admin">Admin Actions Only 🛡️</option>
+              <option value="User">Standard Users Only 👤</option>
+            </select>
+
             {/* Status Filter */}
             <select
               value={logStatusFilter}
@@ -110,12 +137,14 @@ export const QueryLogs: React.FC<QueryLogsProps> = ({
             {/* Reset filter button */}
             {(logSearch ||
               logStatusFilter !== "All" ||
+              logRoleFilter !== "All" ||
               logDateFilter !== "All") && (
               <button
                 type="button"
                 onClick={() => {
                   setLogSearch("");
                   setLogStatusFilter("All");
+                  setLogRoleFilter("All");
                   setLogDateFilter("All");
                   setLogCurrentPage(1);
                 }}
