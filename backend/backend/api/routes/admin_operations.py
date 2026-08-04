@@ -285,7 +285,9 @@ async def confirm_action(request: ConfirmRequest):
         confirmation_store = get_admin_confirmation_store(business_client, app_client)
         logger = get_monitoring_logger()
 
+        start_time = time.time()
         executed_sql, rows, affected_count = confirmation_store.confirm(request.token)
+        exec_time = int((time.time() - start_time) * 1000)
 
         # Re-run the read the admin was last looking at, or query the full table directly.
         refreshed_data = None
