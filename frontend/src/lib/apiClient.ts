@@ -2,7 +2,7 @@ import type { PipelineEvalRun, BenchmarkEvalRun, ProviderBenchmark } from "../ty
 import type { QueryLog } from "../types/query";
 import type { ModelProvider, DataInsight } from "../types";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8005";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL !== undefined ? import.meta.env.VITE_API_BASE_URL : (import.meta.env.DEV ? "http://localhost:8005" : "");
 
 export class ApiError extends Error {
   status: number;
