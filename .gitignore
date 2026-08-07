@@ -35,3 +35,7 @@ scratch/
 
 # Generated benchmark/eval output - kept on disk, not in the repo
 backend/backend/ai/evaluation/reports/
+
+# Exclude report/method docs
+laporanmethod.md
+
