@@ -1,14 +1,17 @@
 # 🤖 Conversational Data Analyst (Lapis AI)
 
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://chatbot-data-analyst2.vercel.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![React](https://img.shields.io/badge/Frontend-React_19_%7C_Vite_%7C_TypeScript-61DAFB?logo=react)](frontend/)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI_%7C_Python-009688?logo=fastapi)](backend/)
 [![Supabase](https://img.shields.io/badge/Database-PostgreSQL_%7C_Supabase-3ECF8E?logo=supabase)](https://supabase.com)
-[![Deployment](https://img.shields.io/badge/Deploy-Vercel-000000?logo=vercel)](vercel.json)
+
+🚀 **Live Deployment**: [https://chatbot-data-analyst2.vercel.app/](https://chatbot-data-analyst2.vercel.app/)
 
 An end-to-end, production-grade **AI-Powered Conversational Data Analyst System**. This application empowers users to query databases using natural language, automatically generating safe SQL queries, executing them, generating natural language explanations, recommending interactive charts, and managing multi-session chat histories.
 
 ---
+
 
 ## 🌟 Key Features
 
