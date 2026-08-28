@@ -5,6 +5,7 @@ Executes validated SQL queries against Supabase database.
 """
 
 import logging
+import re
 from typing import Optional, Tuple, List, Dict, Any
 import asyncio
 
@@ -57,6 +58,19 @@ class SupabaseQueryExecutor:
         )
         """
         try:
+            # Strip any accidental English prose lines or explanation footnotes
+            lines = [l for l in sql.strip().splitlines() if l.strip()]
+            clean_lines = []
+            for line in lines:
+                stripped = line.strip()
+                if re.match(r'^(the\s+table|the\s+query|this\s+query|i\s+need|note:|table:)\b', stripped, re.IGNORECASE):
+                    break
+                if stripped.endswith(".") and not re.match(r'^(SELECT|FROM|WHERE|GROUP|HAVING|ORDER|LIMIT|JOIN|AND|OR)\b', stripped, re.IGNORECASE):
+                    break
+                clean_lines.append(line)
+            if clean_lines:
+                sql = "\n".join(clean_lines).strip().rstrip(";")
+
             logger.info(f"Executing query: {sql[:80]}...")
             
             data, row_count, execution_time = self.client.execute_query(sql)

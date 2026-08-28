@@ -52,7 +52,7 @@ def _clear_probe_cache():
 
 
 USAGE = {
-    "model_name": "llama-3.1-8b-instant",
+    "model_name": "openai/gpt-oss-20b",
     "input_tokens": 1500,
     "output_tokens": 120,
     "estimated_cost": 0.00012,
@@ -122,7 +122,7 @@ class TestWritesWithTheMigration:
 
         _, params = client.writes[0]
         assert params[7] == "groq"
-        assert params[8] == "llama-3.1-8b-instant"
+        assert params[8] == "openai/gpt-oss-20b"
         assert params[9] == 1500
         assert params[12] == 2100, "latency is stored as a whole millisecond"
 

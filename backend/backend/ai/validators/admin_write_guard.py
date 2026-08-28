@@ -36,7 +36,7 @@ class AdminWriteSQLGuard(SQLGuardValidator):
         if k not in ("INSERT", "UPDATE", "DELETE")
     }
 
-    ALLOWED_LEADING_STATEMENTS = {"SELECT", "INSERT", "UPDATE", "DELETE"}
+    ALLOWED_LEADING_STATEMENTS = {"SELECT", "INSERT", "UPDATE", "DELETE", "WITH"}
     REQUIRES_WHERE = {"UPDATE", "DELETE"}
 
     def validate(self, sql_query: str) -> Dict:

@@ -31,7 +31,7 @@ class LLMClientConfig:
 
     Attributes:
         api_key: Groq API key
-        model: Model name (e.g., "llama-3.3-70b-versatile", "llama-3.1-8b-instant")
+        model: Model name (e.g., "openai/gpt-oss-20b", "llama-3.3-70b-versatile")
         temperature: Sampling temperature (0-2)
         max_tokens: Maximum tokens in response
         timeout: API request timeout in seconds
@@ -166,6 +166,18 @@ class TokenCounter:
             "input": 0.0002,
             "output": 0.0002
         },
+        "qwen/qwen3.6-27b": {
+            "input": 0.0003,
+            "output": 0.0003
+        },
+        "groq/compound-mini": {
+            "input": 0.0001,
+            "output": 0.0001
+        },
+        "openai/gpt-oss-20b": {
+            "input": 0.0001,
+            "output": 0.0001
+        },
         # Gemini. "-latest" is a moving alias, so this is the published
         # Flash-Lite rate at time of writing - re-check if the alias moves.
         "gemini-flash-lite-latest": {
@@ -179,6 +191,9 @@ class TokenCounter:
         "llama-3.3-70b-versatile": 128_000,
         "llama-3.1-8b-instant": 128_000,
         "gemma2-9b-it": 8_192,
+        "qwen/qwen3.6-27b": 32_768,
+        "groq/compound-mini": 32_768,
+        "openai/gpt-oss-20b": 32_768,
         "gemini-flash-lite-latest": 1_000_000
     }
 
@@ -968,7 +983,11 @@ def get_llm_client(provider: str = "groq") -> LLMClient:
     if provider not in SUPPORTED_LLM_PROVIDERS:
         raise ValueError(f"Unknown LLM provider: {provider!r}. Supported: {SUPPORTED_LLM_PROVIDERS}")
 
-    if provider not in _sync_clients:
+    settings = get_settings()
+    expected_model = settings.gemini_model if provider == "gemini" else settings.groq_model
+    cached = _sync_clients.get(provider)
+
+    if not cached or getattr(getattr(cached, "config", None), "model", None) != expected_model:
         _sync_clients[provider] = GeminiLLMClient() if provider == "gemini" else LLMClient()
     return _sync_clients[provider]
 
@@ -986,6 +1005,10 @@ def get_async_llm_client(provider: str = "groq") -> AsyncLLMClient:
     if provider not in SUPPORTED_LLM_PROVIDERS:
         raise ValueError(f"Unknown LLM provider: {provider!r}. Supported: {SUPPORTED_LLM_PROVIDERS}")
 
-    if provider not in _async_clients:
+    settings = get_settings()
+    expected_model = settings.gemini_model if provider == "gemini" else settings.groq_model
+    cached = _async_clients.get(provider)
+
+    if not cached or getattr(getattr(cached, "config", None), "model", None) != expected_model:
         _async_clients[provider] = AsyncGeminiLLMClient() if provider == "gemini" else AsyncLLMClient()
     return _async_clients[provider]

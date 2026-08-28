@@ -224,7 +224,7 @@ client = get_llm_client()
 # Or create with custom config
 config = LLMClientConfig(
     api_key="sk-...",
-    model="llama-3.1-8b-instant",
+    model="openai/gpt-oss-20b",
     temperature=0.3,
     max_tokens=1024
 )
@@ -590,7 +590,7 @@ responses = await client.generate_batch(
 ### High Latency
 - Check Groq API status
 - Review token counts
-- Consider using llama-3.1-8b-instant for faster responses
+- Consider using openai/gpt-oss-20b for faster responses
 
 ### High Costs
 - Monitor token usage via monitoring logger

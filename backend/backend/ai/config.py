@@ -5,9 +5,14 @@ Handles environment variables, API keys, and system settings.
 Supports both development and production environments.
 """
 
+import os
+import dotenv
 from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
+
+ENV_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env")
+dotenv.load_dotenv(ENV_PATH, override=True)
 
 
 class Settings(BaseSettings):
@@ -23,7 +28,7 @@ class Settings(BaseSettings):
         default="gsk-test-dummy-key-for-development",
         alias="GROQ_API_KEY"
     )
-    groq_model: str = Field(default="llama-3.3-70b-versatile", alias="GROQ_MODEL")
+    groq_model: str = Field(default="openai/gpt-oss-20b", alias="GROQ_MODEL")
     groq_temperature: float = Field(default=0.3, alias="GROQ_TEMPERATURE")
     groq_max_tokens: int = Field(default=1024, alias="GROQ_MAX_TOKENS")
 
@@ -95,7 +100,7 @@ class Settings(BaseSettings):
     frontend_url: str = Field(default="http://localhost:5173", alias="FRONTEND_URL")
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(ENV_PATH, ".env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore"
@@ -139,12 +144,12 @@ def validate_config() -> bool:
 
 def get_settings() -> Settings:
     """
-    Get the global settings instance.
-    
+    Get the settings instance.
+
     Returns:
         Settings: The validated settings instance.
     """
-    return settings
+    return Settings()
 
 
 def get_environment() -> str:

@@ -14,7 +14,7 @@ from backend.ai.llm.client import TokenCounter
 from backend.ai.llm.generator import aggregate_llm_usage
 
 
-def _response(model="llama-3.1-8b-instant", input_tokens=100, output_tokens=20,
+def _response(model="openai/gpt-oss-20b", input_tokens=100, output_tokens=20,
               cost=0.001, latency=500.0):
     """Shape of LLMResponse.to_dict(), which is what the generators store."""
     return {
@@ -90,7 +90,7 @@ class TestEstimateCost:
     """Tests for `TokenCounter.estimate_cost`."""
 
     def test_known_groq_model_costs_more_than_zero(self):
-        cost = TokenCounter.estimate_cost("llama-3.1-8b-instant", 1000, 1000)
+        cost = TokenCounter.estimate_cost("openai/gpt-oss-20b", 1000, 1000)
 
         assert cost > 0
 
@@ -101,8 +101,8 @@ class TestEstimateCost:
         assert cost > 0
 
     def test_cost_scales_with_tokens(self):
-        small = TokenCounter.estimate_cost("llama-3.1-8b-instant", 1000, 1000)
-        large = TokenCounter.estimate_cost("llama-3.1-8b-instant", 10_000, 10_000)
+        small = TokenCounter.estimate_cost("openai/gpt-oss-20b", 1000, 1000)
+        large = TokenCounter.estimate_cost("openai/gpt-oss-20b", 10_000, 10_000)
 
         assert large > small
 

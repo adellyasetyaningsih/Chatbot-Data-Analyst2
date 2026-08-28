@@ -350,9 +350,51 @@ class SQLGenerator:
                 error_message=str(e)
             )
 
+    def _is_english_explanation_line(self, line: str) -> bool:
+        """Check if a line of text is an English explanation line rather than a valid SQL line."""
+        stripped = line.strip()
+        if not stripped:
+            return False
+
+        # If line starts with typical English prose starters (case insensitive)
+        if re.match(r'^(the|this|that|these|those|there|here|i|we|you|they|he|she|it|note|please|explanation|table:)\b', stripped, re.IGNORECASE):
+            if not re.match(r'^(TABLE\s+[a-zA-Z0-9_]+|AS\b)', stripped, re.IGNORECASE):
+                return True
+
+        # English sentences ending with a period '.' (rare/invalid at the end of SQL query lines)
+        if stripped.endswith(".") and not re.match(r'^(SELECT|FROM|WHERE|GROUP|HAVING|ORDER|LIMIT|JOIN|AND|OR|ON|SET|VALUES)\b', stripped, re.IGNORECASE):
+            return True
+
+        SQL_LINE_STARTERS = {
+            "SELECT", "FROM", "WHERE", "GROUP", "HAVING", "ORDER", "LIMIT",
+            "JOIN", "LEFT", "RIGHT", "INNER", "OUTER", "CROSS", "FULL", "ON",
+            "AND", "OR", "UNION", "INSERT", "UPDATE", "DELETE", "SET", "VALUES",
+            "WITH", "RETURNING", "CASE", "WHEN", "THEN", "ELSE", "END",
+            "WITHIN", "OVER", "WINDOW", "OFFSET", ")", "(", "--", "/*"
+        }
+
+        words = stripped.split()
+        first_word = words[0].rstrip(",:;.").upper()
+
+        if first_word in SQL_LINE_STARTERS:
+            return False
+
+        ENGLISH_INDICATORS = {
+            "need", "want", "should", "would", "could", "will", "can", "must",
+            "to", "them", "this", "that", "these", "those", "here", "there",
+            "helps", "shows", "fetches", "gets", "retrieves", "calculates",
+            "is", "are", "was", "were", "has", "have", "first", "next", "then"
+        }
+
+        lower_words = [w.lower().strip(",:;.\"\'`()") for w in words]
+        if any(ind in lower_words for ind in ENGLISH_INDICATORS):
+            return True
+
+        return False
+
     def _clean_sql_output(self, raw_output: str) -> str:
         """
-        Strip markdown code fences and surrounding whitespace from raw LLM output.
+        Strip markdown code fences, headers, preambles, and trailing explanation text from raw LLM output.
 
         Args:
             raw_output: The raw LLM response content.
@@ -360,16 +402,44 @@ class SQLGenerator:
         Returns:
             str: Cleaned SQL string.
         """
-        sql = raw_output.strip()
+        if not raw_output:
+            return ""
 
-        if "```" in sql:
-            parts = sql.split("```")
-            # parts look like ['', 'sql\nSELECT ...', ''] or ['', 'SELECT ...', '']
-            sql = parts[1] if len(parts) > 1 else sql
-            if sql.lower().startswith("sql"):
-                sql = sql[3:]
+        text = raw_output.strip()
 
-        return ensure_deterministic_order(sql.strip().rstrip(";").strip())
+        # Step 1: Extract block inside markdown fence if present
+        if "```" in text:
+            matches = re.findall(r'```(?:sql)?\s*(.*?)\s*```', text, re.DOTALL | re.IGNORECASE)
+            if matches:
+                text = matches[0].strip()
+            else:
+                parts = text.split("```")
+                if len(parts) > 1:
+                    text = parts[1].strip()
+                    if text.lower().startswith("sql"):
+                        text = text[3:].strip()
+
+        # Step 2: Locate the starting keyword (SELECT, INSERT, UPDATE, DELETE, WITH)
+        start_match = re.search(r'\b(SELECT|INSERT|UPDATE|DELETE|WITH)\b', text, re.IGNORECASE)
+        if not start_match:
+            return text.strip()
+
+        sql_part = text[start_match.start():].strip()
+
+        # Step 3: Truncate at semicolon if present
+        if ";" in sql_part:
+            sql_part = sql_part.split(";")[0].strip()
+
+        # Step 4: Truncate at trailing English explanation lines (e.g. "The table is...", "I need to...", "Note...")
+        lines = sql_part.splitlines()
+        clean_lines = []
+        for line in lines:
+            if self._is_english_explanation_line(line):
+                break
+            clean_lines.append(line)
+
+        final_sql = "\n".join(clean_lines).strip().rstrip(";").strip()
+        return ensure_deterministic_order(final_sql)
 
 
 class ExplanationGenerator:

@@ -222,7 +222,7 @@ class SQLGuardValidator:
             checks_passed.append("No SQL injection patterns detected")
         
         # ============ Check 6: SELECT Statement Validation ============
-        if normalized_sql.strip().upper().startswith("SELECT"):
+        if normalized_sql.strip().upper().startswith(("SELECT", "WITH")):
             select_check = self._validate_select_statement(normalized_sql)
             
             if not select_check["is_valid"]:
@@ -233,7 +233,7 @@ class SQLGuardValidator:
         else:
             errors.append(ValidationError(
                 error_type="NOT_SELECT",
-                message="Query must start with SELECT. Only read operations are allowed.",
+                message="Query must start with SELECT or WITH. Only read operations are allowed.",
                 severity="critical"
             ))
         
@@ -415,11 +415,11 @@ class SQLGuardValidator:
         
         sql_upper = normalized_sql.upper()
         
-        # Must start with SELECT
-        if not sql_upper.startswith("SELECT"):
+        # Must start with SELECT or WITH
+        if not sql_upper.startswith(("SELECT", "WITH")):
             errors.append(ValidationError(
                 error_type="NOT_SELECT",
-                message="Statement must be a SELECT query",
+                message="Statement must be a SELECT or WITH query",
                 severity="critical"
             ))
             return {"is_valid": False, "errors": errors}
