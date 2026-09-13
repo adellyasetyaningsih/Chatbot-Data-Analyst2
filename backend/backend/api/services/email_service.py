@@ -26,20 +26,23 @@ def generate_otp() -> str:
 def _send(to_email: str, subject: str, body: str) -> bool:
     settings = get_settings()
 
-    if not settings.smtp_user or not settings.smtp_password:
+    smtp_user = settings.smtp_user.strip() if settings.smtp_user else ""
+    smtp_password = settings.smtp_password.strip() if settings.smtp_password else ""
+
+    if not smtp_user or not smtp_password:
         logger.error("SMTP not configured (SMTP_USER/SMTP_PASSWORD empty) - cannot send email")
         return False
 
     msg = MIMEMultipart()
     msg["Subject"] = subject
-    msg["From"] = settings.smtp_user
+    msg["From"] = smtp_user
     msg["To"] = to_email
     msg.attach(MIMEText(body, "plain"))
 
     try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
             server.starttls()
-            server.login(settings.smtp_user, settings.smtp_password)
+            server.login(smtp_user, smtp_password)
             server.send_message(msg)
         return True
     except smtplib.SMTPAuthenticationError:
